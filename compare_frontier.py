@@ -14,7 +14,7 @@ from statistics import median
 from cloud_probe import verify
 
 SCHEMA="mj.cloud-frontier-benchmark/1.0.0"
-ALLOWLIST={"baseline-9b","dense-27b","moe-35b","openai-20b"}
+ALLOWLIST={"baseline-9b","dense-27b","moe-35b","openai-20b","fable-reconstruction-9b","fable-reconstruction-27b"}
 CASE_COUNT=12
 
 def load_receipt(path:Path):
