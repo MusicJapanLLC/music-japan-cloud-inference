@@ -1,0 +1,74 @@
+name: Public FableOpus merged 9B — real cloud inference
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/public-recon-opus.yml"
+  workflow_dispatch:
+    inputs:
+      execute_model:
+        description: "Execute community Fable/Opus 4.6-derived open checkpoint on free public CPU Linux"
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-fable-opus-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify public weights metadata and test scores
+        run: |
+          set -euo pipefail
+          python3 -m unittest -q test_cloud_probe.py test_cloud_infer_frontier.py test_compare_frontier.py
+          python3 cloud_infer_frontier.py --profile fable-opus-merge-9b --binary unused --weights "$RUNNER_TEMP/weights" --receipt "$RUNNER_TEMP/result.json"
+
+  infer:
+    needs: validate
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.execute_model == true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Confirm bounded and nonbillable Linux worker
+        run: python3 cloud_probe.py
+      - name: Build independent open-source inference runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth 1 https://github.com/ggml-org/llama.cpp.git "$RUNNER_TEMP/llama.cpp"
+          cmake -S "$RUNNER_TEMP/llama.cpp" -B "$RUNNER_TEMP/llama.cpp/build" -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DGGML_CUDA=OFF -DLLAMA_CURL=OFF
+          cmake --build "$RUNNER_TEMP/llama.cpp/build" --config Release --target llama-server -j 4
+      - name: Download exact public weights with pinned SHA and answer 12 prompts
+        shell: bash
+        env:
+          HF_HUB_DISABLE_TELEMETRY: "1"
+        run: |
+          set -euo pipefail
+          python3 cloud_infer_frontier.py \
+            --profile fable-opus-merge-9b \
+            --binary "$RUNNER_TEMP/llama.cpp/build/bin/llama-server" \
+            --weights "$RUNNER_TEMP/weights" \
+            --receipt "$RUNNER_TEMP/result.json" \
+            --tasks 12 --execute
+      - name: Preserve answers and quality proof, never weights
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-fable-opus-merge-9b-proof
+          path: ${{ runner.temp }}/result.json
+          retention-days: 1
+          if-no-files-found: ignore
