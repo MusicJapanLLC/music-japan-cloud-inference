@@ -1,0 +1,78 @@
+name: Music Japan official OpenAI gpt-oss-20B inference
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/openai-oss-20b.yml"
+      - "cloud_infer_frontier.py"
+      - "test_cloud_infer_frontier.py"
+      - "compare_frontier.py"
+      - "test_compare_frontier.py"
+  workflow_dispatch:
+    inputs:
+      run_model:
+        description: "Actually run the public Apache-2.0 gpt-oss-20B weight, not any proprietary API"
+        type: boolean
+        default: false
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mj-openai-oss-20b-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Reproduce policy and benchmark test suite
+        run: |
+          python3 -m unittest -q test_cloud_probe.py test_cloud_infer_frontier.py test_compare_frontier.py
+          python3 cloud_infer_frontier.py --profile openai-20b --binary unused --weights /tmp/weights --receipt /tmp/evidence.json
+
+  official-open-weight-20b:
+    needs: validation
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_model == true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Validate this is a free public CPU runner
+        run: |
+          set -euo pipefail
+          python3 cloud_probe.py
+          python3 -m unittest -q test_cloud_infer_frontier.py
+      - name: Compile real llama.cpp native inference
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth 1 https://github.com/ggml-org/llama.cpp.git "$RUNNER_TEMP/llama.cpp"
+          cmake -S "$RUNNER_TEMP/llama.cpp" -B "$RUNNER_TEMP/llama.cpp/build" -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DGGML_CUDA=OFF -DLLAMA_CURL=OFF
+          cmake --build "$RUNNER_TEMP/llama.cpp/build" --config Release --target llama-server -j 4
+      - name: Verify official open weights and run real 12-task inference
+        shell: bash
+        env:
+          HF_HUB_DISABLE_TELEMETRY: "1"
+        run: |
+          set -euo pipefail
+          python3 cloud_infer_frontier.py \
+            --profile openai-20b \
+            --binary "$RUNNER_TEMP/llama.cpp/build/bin/llama-server" \
+            --weights "$RUNNER_TEMP/weights" \
+            --receipt "$RUNNER_TEMP/evidence.json" \
+            --tasks 12 --execute
+      - name: Save technical-only proof (never archive model weights)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: official-openai-20b-benchmark
+          path: ${{ runner.temp }}/evidence.json
+          retention-days: 1
+          if-no-files-found: ignore
