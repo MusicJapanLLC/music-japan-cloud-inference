@@ -1,0 +1,43 @@
+{
+  "credits_used": 0,
+  "fable_or_opus_model": false,
+  "genuine_open_weight_inference": true,
+  "model": "Qwen3.5-9B-Q3_K_M",
+  "model_repo": "gguf/Qwen3.5-9B-GGUF",
+  "model_revision": "dc40af5d4666acd6ce1c1dd71ec61cee2f1c966e",
+  "model_sha256": "24fccd8416fcdca792f939de4a2240eb57795b0f7a9ba92e62398eab3ec5c11e",
+  "paid_cloud_used": false,
+  "quality_passes": 3,
+  "quality_total": 3,
+  "results": [
+    {
+      "correct": true,
+      "has_text": true,
+      "http_status": 200,
+      "id": "math",
+      "output": "437",
+      "output_tokens": 4,
+      "seconds": 5.15
+    },
+    {
+      "correct": true,
+      "has_text": true,
+      "http_status": 200,
+      "id": "format",
+      "output": "ONLINE",
+      "output_tokens": 3,
+      "seconds": 3.18
+    },
+    {
+      "correct": true,
+      "has_text": true,
+      "http_status": 200,
+      "id": "japanese",
+      "output": "おはよう",
+      "output_tokens": 4,
+      "seconds": 3.38
+    }
+  ],
+  "schema": "mj.cloud-9b-inference/1.0.0",
+  "sha256": "719b3696a52768a44d80d6d483224f101584a970af7102be0079aeb38c8da48e"
+}
