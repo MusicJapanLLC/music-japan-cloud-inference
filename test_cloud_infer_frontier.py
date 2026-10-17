@@ -7,14 +7,14 @@ import cloud_infer_frontier as f
 
 class FrontierTests(unittest.TestCase):
     def test_exact_weight_provenance(self):
-        self.assertEqual(set(f.MODEL_MAP), {"baseline-9b","dense-27b","moe-35b","openai-20b"})
+        self.assertEqual(set(f.MODEL_MAP), {"baseline-9b","dense-27b","moe-35b","openai-20b","fable-reconstruction-9b","fable-reconstruction-27b"})
         for name,model in f.MODEL_MAP.items():
             self.assertEqual(len(model["sha256"]),64)
             self.assertGreater(model["bytes"],5_000_000_000)
             self.assertTrue(f.weight_url(model).startswith("https://huggingface.co/"))
             self.assertIn(model["revision"],f.weight_url(model))
     def test_no_false_proprietary_label(self):
-        self.assertTrue(all(x["repo"] and ("Qwen" in x["model"] or x["model"].startswith("gpt-oss")) for x in f.MODEL_MAP.values()))
+        self.assertTrue(all(x["repo"] and ("Qwen" in x["model"] or x["model"].startswith("gpt-oss") or "Qwable" in x["model"]) for x in f.MODEL_MAP.values()))
         self.assertEqual(f.SCHEMA,"mj.cloud-frontier-benchmark/1.0.0")
     def test_reject_changed_bytes(self):
         with tempfile.TemporaryDirectory() as t:
