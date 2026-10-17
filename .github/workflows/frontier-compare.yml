@@ -7,6 +7,8 @@ on:
       - ".github/workflows/frontier-compare.yml"
       - "cloud_infer_frontier.py"
       - "test_cloud_infer_frontier.py"
+      - "compare_frontier.py"
+      - "test_compare_frontier.py"
   workflow_dispatch:
     inputs:
       run_models:
@@ -32,7 +34,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Test benchmark code without external inference
-        run: python3 -m unittest -q test_cloud_probe.py test_cloud_infer_9b.py test_cloud_infer_frontier.py
+        run: python3 -m unittest -q test_cloud_probe.py test_cloud_infer_9b.py test_cloud_infer_frontier.py test_compare_frontier.py
       - name: Verify all three dry-run model profiles
         run: |
           set -euo pipefail
@@ -59,7 +61,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 cloud_probe.py
-          python3 -m unittest -q test_cloud_probe.py test_cloud_infer_frontier.py
+          python3 -m unittest -q test_cloud_probe.py test_cloud_infer_frontier.py test_compare_frontier.py
           python3 cloud_infer_frontier.py --profile "${{ matrix.profile }}" --binary unused --weights "$RUNNER_TEMP/weights" --receipt "$RUNNER_TEMP/result.json"
       - name: Build local CPU inference engine from public source
         shell: bash
