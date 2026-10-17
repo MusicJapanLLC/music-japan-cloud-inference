@@ -55,11 +55,10 @@ class FrontierTests(unittest.TestCase):
                     f.available(f.MODEL_MAP["dense-27b"],Path(t))
     def test_reserved_disk_threshold(self):
         with tempfile.TemporaryDirectory() as t:
-            with patch.object(f,"linux_memory_gib",return_value=32):
+            with patch.object(f,"linux_memory_gib",return_value=32), patch.object(f.shutil,"disk_usage",return_value=type("Disk",(),{"free":2*2**30})()):
                 with self.assertRaisesRegex(RuntimeError,"DISK"):
                     f.available(f.MODEL_MAP["moe-35b"],Path(t))
     def test_no_untrusted_source(self):
-        f.validate = getattr(f,"verify_weight")
         self.assertTrue(f.MODEL_MAP["dense-27b"]["repo"].startswith("bartowski/"))
     def test_unsigned_history_not_present(self):
         self.assertIsNone(f.MODEL_MAP["dense-27b"].get("token"))
