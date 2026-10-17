@@ -1,0 +1,38 @@
+name: Verify deployable public reconstruction API
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/verify-deploy.yml"
+      - "deploy/**"
+      - "cloud_infer_frontier.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-deployment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prove 3 public model profiles without downloads or credits
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest -q deploy.test_prepare_public_model test_cloud_infer_frontier
+          for profile in fable-reconstruction-9b fable-reconstruction-27b fable-opus-merge-9b; do
+            python3 deploy/prepare_public_model.py --profile "$profile" > /dev/null
+          done
+      - name: Check actual Docker Compose contract, no containers started
+        shell: bash
+        env:
+          MJ_INFERENCE_API_KEY: ci-validation-placeholder-not-a-real-secret
+        run: |
+          set -euo pipefail
+          docker compose -f deploy/docker-compose.yml config --quiet
+          docker compose -f deploy/docker-compose.yml config --format json | python3 -c 'import json,sys; x=json.load(sys.stdin); c=x["services"]["llm"]; assert c["ports"][0]["host_ip"]=="127.0.0.1"; assert c["environment"]["LLAMA_API_KEY"].startswith("ci-validation"); assert x["name"]=="music-japan-public-reconstruction"; print("DEPLOYMENT_CONFIG_VALID_LOOPBACK_ONLY")'
