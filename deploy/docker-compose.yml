@@ -1,0 +1,31 @@
+name: music-japan-public-reconstruction
+services:
+  llm:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    restart: "no"
+    ports:
+      - "127.0.0.1:18080:8080"
+    volumes:
+      - ../models:/models:ro
+    environment:
+      LLAMA_API_KEY: ${MJ_INFERENCE_API_KEY:?Set a private key in deploy/.env}
+      LLAMA_ARG_CORS_ORIGINS: http://127.0.0.1:18080
+    command:
+      - -m
+      - /models/${MODEL_FILENAME:-Qwable-9B-Claude-Fable-5-Q4_K_M.gguf}
+      - -a
+      - ${MODEL_ALIAS:-mj-public-fable-inspired-9b}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - -c
+      - "4096"
+      - --jinja
+      - -t
+      - "4"
+      - --no-webui
+      - --cache-ram
+      - "0"
+      - -ngl
+      - "0"
