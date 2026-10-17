@@ -1,0 +1,91 @@
+name: Music Japan 9B vs 27B vs 35B model quality benchmark
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/frontier-compare.yml"
+      - "cloud_infer_frontier.py"
+      - "test_cloud_infer_frontier.py"
+  workflow_dispatch:
+    inputs:
+      run_models:
+        description: "Execute real open-weight models on free public standard CPU runners"
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mj-frontier-compare-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate pinned licenses, quantization hashes and evaluator
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Test benchmark code without external inference
+        run: python3 -m unittest -q test_cloud_probe.py test_cloud_infer_9b.py test_cloud_infer_frontier.py
+      - name: Verify all three dry-run model profiles
+        run: |
+          set -euo pipefail
+          for p in baseline-9b dense-27b moe-35b; do
+            python3 cloud_infer_frontier.py --profile "$p" --binary unused --weights "$RUNNER_TEMP/weights" --receipt "$RUNNER_TEMP/proof.json"
+          done
+
+  compare:
+    name: Benchmark ${{ matrix.profile }} actual CPU inference
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_models == true }}
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [baseline-9b, dense-27b, moe-35b]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Preflight no-credit policy and actual runner resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 cloud_probe.py
+          python3 -m unittest -q test_cloud_probe.py test_cloud_infer_frontier.py
+          python3 cloud_infer_frontier.py --profile "${{ matrix.profile }}" --binary unused --weights "$RUNNER_TEMP/weights" --receipt "$RUNNER_TEMP/result.json"
+      - name: Build local CPU inference engine from public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth 1 https://github.com/ggml-org/llama.cpp.git "$RUNNER_TEMP/llama.cpp"
+          cmake -S "$RUNNER_TEMP/llama.cpp" -B "$RUNNER_TEMP/llama.cpp/build" -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DGGML_CUDA=OFF -DLLAMA_CURL=OFF
+          cmake --build "$RUNNER_TEMP/llama.cpp/build" --config Release --target llama-server -j 4
+      - name: Load SHA-256 verified real weights and test 12 diverse prompts
+        shell: bash
+        env:
+          HF_HUB_DISABLE_TELEMETRY: "1"
+        run: |
+          set -euo pipefail
+          python3 cloud_infer_frontier.py \
+            --profile "${{ matrix.profile }}" \
+            --binary "$RUNNER_TEMP/llama.cpp/build/bin/llama-server" \
+            --weights "$RUNNER_TEMP/weights" \
+            --receipt "$RUNNER_TEMP/result.json" \
+            --tasks 12 \
+            --execute
+      - name: Publish answer quality and resource evidence, not model weights
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontier-${{ matrix.profile }}-result
+          path: ${{ runner.temp }}/result.json
+          retention-days: 1
+          if-no-files-found: ignore
