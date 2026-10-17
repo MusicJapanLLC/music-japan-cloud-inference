@@ -1,0 +1,88 @@
+name: Public Fable-inspired reconstruction (9B / 27B) — real inference
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/public-recon-fable.yml"
+      - "cloud_infer_frontier.py"
+      - "test_cloud_infer_frontier.py"
+      - "compare_frontier.py"
+  workflow_dispatch:
+    inputs:
+      execute_public_models:
+        description: "Run genuine publicly released reconstructions of Fable-style model outputs on free Linux CPU"
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mj-public-recon-fable-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Verify official upstream repo IDs / SHA-256 / no-credit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Test source provenance and comparison
+        run: |
+          set -euo pipefail
+          python3 -m unittest -q test_cloud_probe.py test_cloud_infer_frontier.py test_compare_frontier.py
+          for profile in fable-reconstruction-9b fable-reconstruction-27b; do
+            python3 cloud_infer_frontier.py --profile "$profile" --binary unused --weights "$RUNNER_TEMP" --receipt "$RUNNER_TEMP/dry-run.json"
+          done
+
+  inference:
+    name: Genuine public reconstruction ${{ matrix.profile }} — actual 12-prompt test
+    needs: validate
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.execute_public_models == true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [fable-reconstruction-9b, fable-reconstruction-27b]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify free public Linux compute and repository tests
+        run: |
+          set -euo pipefail
+          python3 cloud_probe.py
+          python3 -m unittest -q test_cloud_probe.py test_cloud_infer_frontier.py test_compare_frontier.py
+      - name: Build llama.cpp from public source, CPU-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth 1 https://github.com/ggml-org/llama.cpp.git "$RUNNER_TEMP/llama.cpp"
+          cmake -S "$RUNNER_TEMP/llama.cpp" -B "$RUNNER_TEMP/llama.cpp/build" -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DGGML_CUDA=OFF -DLLAMA_CURL=OFF
+          cmake --build "$RUNNER_TEMP/llama.cpp/build" --config Release --target llama-server -j 4
+      - name: Verify full 9B/27B model hashes and run actual CPU inference
+        env:
+          HF_HUB_DISABLE_TELEMETRY: "1"
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 cloud_infer_frontier.py \
+            --profile "${{ matrix.profile }}" \
+            --binary "$RUNNER_TEMP/llama.cpp/build/bin/llama-server" \
+            --weights "$RUNNER_TEMP/weights" \
+            --receipt "$RUNNER_TEMP/recon-proof.json" \
+            --tasks 12 --execute
+      - name: Store 12 answers and timing, never store model weights or auth
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-reconstruction-${{ matrix.profile }}-results
+          path: ${{ runner.temp }}/recon-proof.json
+          retention-days: 1
+          if-no-files-found: ignore
