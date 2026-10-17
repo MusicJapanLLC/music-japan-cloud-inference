@@ -41,6 +41,16 @@ MODEL_MAP = {
         "size_b": 27,
         "min_ram_gib": 15,
     },
+    "openai-20b": {
+        "repo": "ggml-org/gpt-oss-20b-GGUF",
+        "revision": "ef9b12f2ff56c69cf32153a02784e7a3c88bf524",
+        "filename": "gpt-oss-20b-MXFP4.gguf",
+        "bytes": 12_109_566_624,
+        "sha256": "27cd6c432c7672cb812a92f611cf3ba7bbc35928262bb1e1253ff4ee6ae35901",
+        "model": "gpt-oss-20b-MXFP4",
+        "size_b": 20,
+        "min_ram_gib": 15,
+    },
     "moe-35b": {
         "repo": "bartowski/Qwen_Qwen3.5-35B-A3B-GGUF",
         "revision": "3d2a22d4eb631b9c8fd2be94599dc2fd84b4a595",
@@ -172,12 +182,18 @@ def run_model(cfg, exe, weights, outfile, limit):
                 raise RuntimeError("LOADED_MODEL_ID_NOT_VERIFIED")
             results=[]
             for case in CHALLENGES[:limit]:
+                is_openai = cfg["repo"].startswith("ggml-org/gpt-oss")
                 body={
-                    "model":model_id,"max_tokens":MAX_OUTPUT,"temperature":0,"stream":False,
-                    "chat_template_kwargs":{"enable_thinking":False},
+                    "model":model_id,
+                    "max_tokens":256 if is_openai else MAX_OUTPUT,
+                    "temperature":1.0 if is_openai else 0,
+                    "stream":False,
+                    "chat_template_kwargs":({"reasoning_effort":"low"} if is_openai else {"enable_thinking":False}),
                     "messages":[{"role":"system","content":"You are a precise assistant. Return only the requested answer, no reasoning."},
                                 {"role":"user","content":case["prompt"]}],
                 }
+                if is_openai:
+                    body["reasoning_effort"]="low"
                 start=time.monotonic()
                 status,payload=request("/v1/chat/completions",key,body,timeout=160)
                 seconds=round(time.monotonic()-start,2)
