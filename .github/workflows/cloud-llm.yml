@@ -1,0 +1,91 @@
+name: Music Japan cloud Linux and 9B inference
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/cloud-llm.yml"
+      - "cloud_probe.py"
+      - "test_cloud_probe.py"
+      - "cloud_infer_9b.py"
+      - "test_cloud_infer_9b.py"
+  workflow_dispatch:
+    inputs:
+      execute_9b:
+        description: "Download verified public Qwen3.5-9B weights and actually run CPU inference (no paid services)"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mj-cloud-llm-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  cloud-linux-inventory:
+    name: Linux VM proof (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 6
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - name: Checkout public code only
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Execute self-tests
+        run: python3 -m unittest -q test_cloud_probe.py test_cloud_infer_9b.py
+      - name: Inventory actual cloud VM
+        run: |
+          python3 cloud_probe.py --out "cloud-proof-${{ matrix.os }}.json"
+          python3 cloud_probe.py --verify "cloud-proof-${{ matrix.os }}.json"
+      - name: Retain non-secret evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloud-proof-${{ matrix.os }}
+          path: cloud-proof-${{ matrix.os }}.json
+          retention-days: 1
+          if-no-files-found: error
+
+  public-9b-inference:
+    name: Actual public 9B Linux CPU model benchmark
+    needs: cloud-linux-inventory
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.execute_9b == true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout public code only
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Hardware and policy gate
+        run: |
+          python3 -m unittest -q test_cloud_probe.py test_cloud_infer_9b.py
+          python3 cloud_probe.py
+          python3 cloud_infer_9b.py --binary unused --data "$RUNNER_TEMP/weights" --out "$RUNNER_TEMP/llm-proof.json"
+      - name: Build official llama.cpp for Ubuntu x64 CPU
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth 1 https://github.com/ggml-org/llama.cpp.git "$RUNNER_TEMP/llama.cpp"
+          cmake -S "$RUNNER_TEMP/llama.cpp" -B "$RUNNER_TEMP/llama.cpp/build" -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DGGML_CUDA=OFF -DLLAMA_CURL=OFF
+          cmake --build "$RUNNER_TEMP/llama.cpp/build" --config Release --target llama-server -j 4
+      - name: Download independently SHA-pinned 9B GGUF and execute
+        env:
+          HF_HUB_DISABLE_TELEMETRY: "1"
+        run: |
+          set -euo pipefail
+          python3 cloud_infer_9b.py --binary "$RUNNER_TEMP/llama.cpp/build/bin/llama-server" --data "$RUNNER_TEMP/weights" --out "$RUNNER_TEMP/llm-proof.json" --execute
+      - name: Upload response and quality proof (no model weights)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: actual-9b-inference-proof
+          path: ${{ runner.temp }}/llm-proof.json
+          retention-days: 1
+          if-no-files-found: ignore
