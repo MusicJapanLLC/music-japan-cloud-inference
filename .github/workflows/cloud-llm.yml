@@ -9,6 +9,8 @@ on:
       - "test_cloud_probe.py"
       - "cloud_infer_9b.py"
       - "test_cloud_infer_9b.py"
+      - "test_hf_zerogpu.py"
+      - "hf_zerogpu/**"
   workflow_dispatch:
     inputs:
       execute_9b:
@@ -39,7 +41,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Execute self-tests
-        run: python3 -m unittest -q test_cloud_probe.py test_cloud_infer_9b.py
+        run: python3 -m unittest -q test_cloud_probe.py test_cloud_infer_9b.py test_hf_zerogpu.py
       - name: Inventory actual cloud VM
         run: |
           python3 cloud_probe.py --out "cloud-proof-${{ matrix.os }}.json"
@@ -65,7 +67,7 @@ jobs:
           persist-credentials: false
       - name: Hardware and policy gate
         run: |
-          python3 -m unittest -q test_cloud_probe.py test_cloud_infer_9b.py
+          python3 -m unittest -q test_cloud_probe.py test_cloud_infer_9b.py test_hf_zerogpu.py
           python3 cloud_probe.py
           python3 cloud_infer_9b.py --binary unused --data "$RUNNER_TEMP/weights" --out "$RUNNER_TEMP/llm-proof.json"
       - name: Build official llama.cpp for Ubuntu x64 CPU
