@@ -71,7 +71,7 @@ def gh(args:list[str],timeout=45, invoke=subprocess.run)->str:
     # Only the installed official gh CLI is used; never a shell/powershell.
     cmd=["gh",*args]
     try:
-        completed=invoke(cmd,capture_output=True,text=True,timeout=timeout,check=False)
+        completed=invoke(cmd,capture_output=True,text=True,encoding="utf-8",errors="replace",timeout=timeout,check=False)
     except FileNotFoundError as e:
         raise RuntimeError("GITHUB_CLI_NOT_INSTALLED") from e
     except subprocess.TimeoutExpired as e:
@@ -79,6 +79,8 @@ def gh(args:list[str],timeout=45, invoke=subprocess.run)->str:
     if completed.returncode:
         # Do not print raw stderr: it could contain a user's public question.
         raise RuntimeError("GITHUB_CLI_EXIT_"+str(completed.returncode))
+    if not isinstance(completed.stdout,str):
+        raise RuntimeError("GITHUB_CLI_OUTPUT_DECODE_FAILURE")
     return completed.stdout.strip()
 
 def dispatch(mode:str,question:str,invoke=None)->dict:
