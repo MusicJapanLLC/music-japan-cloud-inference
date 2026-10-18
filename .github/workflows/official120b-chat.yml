@@ -44,7 +44,7 @@ jobs:
       - name: Exact official weights, true inference and no-credit unit tests
         run: |
           set -euo pipefail
-          python3 -m unittest -q test_official120b_chat.py test_experimental_gptoss120b.py test_objective_verifier.py
+          python3 -m unittest -q test_official120b_chat.py test_render_official120b.py test_experimental_gptoss120b.py test_objective_verifier.py
           python3 official120b_chat.py --binary unavailable --weights-dir "$RUNNER_TEMP/weights" --out "$RUNNER_TEMP/out.json"
   infer:
     needs: test
@@ -77,6 +77,11 @@ jobs:
             --effort "${{ inputs.reasoning_effort }}" \
             --rounds "${{ inputs.thinking_rounds }}" \
             --tokens "${{ inputs.output_tokens }}"
+      - name: Verify original 120B proof and show final answer on GitHub
+        if: ${{ success() }}
+        run: |
+          set -euo pipefail
+          python3 render_official120b.py --receipt "$RUNNER_TEMP/real-120b-answer.json"
       - name: Upload genuine 120B answer, SHA proof and latency, not model weights
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
