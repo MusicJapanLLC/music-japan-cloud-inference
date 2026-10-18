@@ -43,6 +43,25 @@ class AdaptiveSupervisorTests(unittest.TestCase):
         self.assertEqual(answer["models"],["gpt-oss-20b-MXFP4"])
         self.assertEqual(answer["verification_status"],"VERIFIED")
         self.assertEqual(answer["actual_model_rounds"],2)
+    def test_tool_correction_of_wrong_raw_20b_triggers_escalation(self):
+        draft,_=pair("max")
+        draft["rounds_evidence"][-1]["answer"]="9150"
+        draft=signed_record(draft)
+        p=sup.plan_question(QUESTION)
+        decision=sup.decide(QUESTION,p,draft)
+        self.assertTrue(decision["escalate_to_120b"])
+        self.assertEqual(decision["last_raw_20b_verification"],"REJECTED")
+        self.assertEqual(decision["draft_verification"],"VERIFIED")
+
+    def test_exhausted_model_thinking_budget_escalates(self):
+        draft,_=pair("max")
+        p=sup.plan_question(QUESTION)
+        draft["rounds_evidence"][0]["output_tokens"]=p["20b_tokens"]
+        draft=signed_record(draft)
+        decision=sup.decide(QUESTION,p,draft)
+        self.assertTrue(decision["escalate_to_120b"])
+        self.assertTrue(decision["truncated_output_detected"])
+
     def test_force_ultra_always_calls_real_high_model(self):
         draft,final=pair("ultra")
         p=sup.plan_question(QUESTION,"force-ultra")
