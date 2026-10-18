@@ -144,6 +144,16 @@ class ReasonerSelectorTest(unittest.TestCase):
         # Japanese strings and JSON can remain unverified even if correct.
         self.assertGreaterEqual(summary["passed"],10)
 
+    def test_both_strict_and_reference_aware_scores(self):
+        answers=[case["expected"] for case in CHALLENGES]
+        answers[-1]="おはようございます"
+        p,c,s=stages(answers,answers,answers)
+        rec=sel.select_from_receipts(p,c,s)
+        audit=sel.test_score_after_selection(rec)
+        self.assertEqual(audit["passed"],11)
+        self.assertEqual(audit["reference_aware_passed"],12)
+        self.assertEqual(audit["rows"][-1]["equivalence_rule"],"curated_multilingual_equivalence")
+
     def test_token_budget_exceeded(self):
         p,c,s=stages()
         for x in p["items"]: x["output_tokens"]=999999
