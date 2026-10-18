@@ -114,10 +114,12 @@ class AdaptiveSupervisorTests(unittest.TestCase):
         q="What is the exact population of Mars?"
         self.assertEqual(sup.check_answer(q,"1 million")["status"],"ABSTAIN")
     def test_summary_html_escape(self):
-        draft,final=pair("ultra",answer="<script>alert(1)</script>")
+        draft,final=pair("ultra")
         p=sup.plan_question(QUESTION,"force-ultra")
         d=sup.decide(QUESTION,p,draft)
         result=sup.finish(QUESTION,p,draft,d,final)
+        result["answer"]="<script>alert(1)</script>"
+        result=signed_record(result)
         safe=sup.safe_summary(result)
         self.assertIn("&lt;script&gt;",safe)
         self.assertNotIn("<script>",safe)
