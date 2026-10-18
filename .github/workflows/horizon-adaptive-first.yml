@@ -1,0 +1,57 @@
+name: Music Japan Adaptive Frontier — First Authentic 397B Answer
+on:
+  push:
+    branches: [feature/mj-frontier-quorum-20261018]
+    paths:
+      - '.github/workflows/horizon-adaptive-first.yml'
+      - 'horizon_adaptive.py'
+      - 'test_horizon_adaptive.py'
+  workflow_dispatch:
+    inputs:
+      source_run:
+        type: string
+        default: '39103992998'
+        required: true
+        description: 'Authorized GitHub run with completed true 397B official-weight answer'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify-and-reconcile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      SRC_RUN: ${{ inputs.source_run || '39103992998' }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Independent source and provenance regression
+        run: |
+          set -euo pipefail
+          python3 -m unittest -q test_horizon_adaptive.py test_horizon_quorum.py test_horizon_federation.py
+      - name: Download finished model-397B evidence independent of slower 235B
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$SRC_RUN" =~ ^[0-9]{7,15}$ ]] || exit 2
+          test "$GH_REPO" = 'MusicJapanLLC/music-japan-cloud-inference'
+          mkdir -p "$RUNNER_TEMP/real-397b"
+          gh run download "$SRC_RUN" -R "$GH_REPO" --name true-beyond120-frontier-397b-iq1s-evidence --dir "$RUNNER_TEMP/real-397b"
+          test -s "$RUNNER_TEMP/real-397b/real-beyond120.json"
+      - name: Independently check real original 397B output, no pseudo-model
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 horizon_adaptive.py \
+            --frontier397 "$RUNNER_TEMP/real-397b/real-beyond120.json" \
+            --question 'Compute ((72 / 8) + 17) times 6. Reply only with the integer.' \
+            --min-workers 1 --out "$RUNNER_TEMP/first-frontier-answer.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: first-authentic-397b-frontier-answer
+          path: ${{ runner.temp }}/first-frontier-answer.json
+          retention-days: 1
+          if-no-files-found: error
