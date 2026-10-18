@@ -1,0 +1,7 @@
+{
+  "schema": "mj.dev-task/1.0",
+  "id": "sliding-window-retry-budget",
+  "workspace": "workspace",
+  "targets": ["retry_budget.py"],
+  "issue": "Fix the rolling-window request retry budget without changing the public API. Budget(limit, window).try_acquire(now) should return True only while fewer than limit attempts have occurred within the half-open interval (now-window, now]. At the exact boundary, old attempts expire. now is monotonic and can be float; reject a timestamp smaller than the previous timestamp with ValueError. limit and window must be strictly positive. The implementation must be thread-safe. reset() clears state and restarts monotonic tracking. Use Python standard library only."
+}
