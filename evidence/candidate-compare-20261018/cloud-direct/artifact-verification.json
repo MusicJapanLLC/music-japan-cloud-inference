@@ -1,0 +1,19 @@
+{
+  "repository": "MusicJapanLLC/music-japan-cloud-inference",
+  "commit": "8f1204a3ea1fc7e1e3b7e0603455974f0814463d",
+  "run_id": 39123219433,
+  "job_id": 117662920360,
+  "run_url": "https://github.com/MusicJapanLLC/music-japan-cloud-inference/actions/runs/39123219433",
+  "artifact_id": 12135182258,
+  "artifact_zip_sha256": "9011e3d1cbec2babcb7e0c4a000f2114a833f878950667c75202f221eb47db96",
+  "artifact_zip_bytes": 3147,
+  "artifact_integrity_verified": true,
+  "controller_tests_passed": 49,
+  "new_model_calls_in_ci": 0,
+  "artifact_file_sha256": {
+    "cloud-context.json": "4b46208292a24acb93523d1ad7df3eaca896b8198a367008f792c213ec471cae",
+    "comparison.json": "c01b97aef9c3ec4990e5ceb8740ce0bddb975317cbd10b3bf04ea5c7a5739f92",
+    "docker-image-id.txt": "c2b253e09afa8c9035885548e68bb10110232755bb73f484a48f79d511e86d95",
+    "selected-edits.json": "406295cc12d29761c95c7cee4f7c16e9d49e48f1fc40fcd3b2279aad0c2ca8e1"
+  }
+}
