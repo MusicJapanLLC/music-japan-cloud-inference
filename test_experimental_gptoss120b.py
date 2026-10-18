@@ -47,7 +47,7 @@ class OSS120BTests(unittest.TestCase):
     def test_cgroup_oom_counters_only(self):
         with tempfile.TemporaryDirectory() as t:
             fp=Path(t)/"events"
-            fp.write_text("low 1\\nhigh 2\\nmax 3\\noom 4\\noom_kill 5\\n",encoding="utf8")
+            fp.write_text("low 1\nhigh 2\nmax 3\noom 4\noom_kill 5\n",encoding="utf8")
             self.assertEqual(m.cgroup_memory_events(fp),{"high":2,"max":3,"oom":4,"oom_kill":5})
 
     def test_missing_cgroup_is_empty(self):
