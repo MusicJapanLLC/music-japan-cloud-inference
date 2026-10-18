@@ -69,7 +69,7 @@ def decide(question:str,inputs:dict)->dict:
             status="UNRESOLVED_MODEL_DISAGREEMENT"
     report=signed_record({
         "schema":SCHEMA,
-        "observed_utc":dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "observed_utc":max((records[p].get("observed_utc","") for p in REQUIRED), default=""),
         "public_question_sha256":hashlib.sha256(question.encode("utf8")).hexdigest(),
         "original_public_models":[records[p]["model_id"] for p in REQUIRED],
         "source_receipt_sha256":{p:records[p]["sha256"] for p in REQUIRED},
