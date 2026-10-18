@@ -35,7 +35,12 @@ UPPER_PROFILES = {
         'source': 'Qwen/Qwen3.8-Flash-Next',
         'upstream': '/root/.cache/huggingface/hub/models--AtomicChat--Qwen3.8-Flash-Next-GGUF/snapshots/1c1f33abc8e835db3215390e8e14c6cc726f5843/Qwen3.8-Flash-Next-AD-4.27bpw-Q4_K_M-M64/Qwen3.8-Flash-Next-AD-4.27bpw-Q4_K_M-M64-00001-of-00033.gguf',
         'origin': 'https://apathy-exe-qwen3-8-flash-next.hf.space',
-        'efforts': ('low', 'medium', 'xhigh')}
+        'efforts': ('low', 'medium', 'xhigh')},
+    'mj-deepseek-v4-flash': {
+        'source': 'deepseek-ai/DeepSeek-V4-Flash-0731',
+        'upstream': '/app/model_unified/DeepSeek-V4-Flash-0731-UD-Q4_K_XL-00001-of-00005.gguf',
+        'origin': 'https://apathy-exe-deepseek-v4-flash-0731.hf.space',
+        'efforts': ('low', 'high', 'max')}
 }
 
 
@@ -309,6 +314,8 @@ class OwnerUpperModel:
                     '--effort', self.effort, '--max-tokens', str(self.max_tokens), '--out', str(receipt_path)],
                     shell=False, capture_output=True, encoding='utf-8', errors='replace', timeout=680)
                 if done.returncode != 0 or not receipt_path.is_file() or receipt_path.is_symlink():
+                    if done.stderr.strip() == 'MusicJapan upper API: Response is incomplete, mismatched, or invalid for the requested format':
+                        raise ValueError('UPPER_RESPONSE_INCOMPLETE_OR_INVALID')
                     raise ValueError('EXISTING_UPPER_CLIENT_FAILED')
                 with receipt_path.open('rb') as handle:
                     raw = handle.read(MAX_WIRE_BYTES + 1)
@@ -326,9 +333,10 @@ class OwnerUpperModel:
                 'source_model': data['source_model'], 'capture_sha256': capture['sha256'],
                 'usage': data['usage'], 'requested_reasoning_effort': self.effort, 'replayed': False})
             return text
-        except Exception:
+        except Exception as exc:
+            reason = str(exc) if isinstance(exc, ValueError) and re.fullmatch('[A-Z_]{1,80}', str(exc)) else 'UPPER_RESPONSE_PROCESSING_FAILED'
             self.calls.append({'attempt': attempt, 'status': 'failed', 'model': self.model,
-                               'error': 'UPPER_CLIENT_OR_RECEIPT_INVALID', 'replayed': False})
+                               'error': 'UPPER_CLIENT_OR_RECEIPT_INVALID', 'reason': reason, 'replayed': False})
             raise ValueError('UPPER_CLIENT_OR_RECEIPT_INVALID') from None
 
 
@@ -435,7 +443,8 @@ def main(argv=None) -> int:
     runner = GitHubRunner(root, task, args.branch, public=True)
     if args.model in UPPER_PROFILES:
         model = OwnerUpperModel(args.client, args.output, model=args.model,
-                                effort=args.effort or 'xhigh', task_id=args.task_id)
+                                effort=args.effort or ('xhigh' if args.model == 'mj-flash-next' else 'high'),
+                                task_id=args.task_id)
     else:
         model = FrontierModel(args.client, args.output, args.captured_response, args.captured_prompt)
     record, edits = v.execute(task, model, runner, [args.model], args.attempts)

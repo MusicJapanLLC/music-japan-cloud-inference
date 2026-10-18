@@ -126,6 +126,26 @@ class OwnerUpperModelTests(unittest.TestCase):
                 model.generate('mj-flash-next', 'third call forbidden')
         self.assertEqual(run.call_count, 2)
 
+    def test_explicit_deepseek_profile_keeps_its_actual_provenance(self):
+        model = self.model(model='mj-deepseek-v4-flash', effort='high')
+        with mock.patch.object(bridge.subprocess, 'run', side_effect=self.fake_client()):
+            model.generate('mj-deepseek-v4-flash', 'public task')
+        self.assertEqual(model.calls[0]['source_model'], 'deepseek-ai/DeepSeek-V4-Flash-0731')
+        with self.assertRaises(ValueError):
+            self.model(model='mj-deepseek-v4-flash', effort='xhigh')
+
+    def test_failure_reason_is_bounded_without_exporting_child_text(self):
+        model = self.model()
+        done = SimpleNamespace(returncode=2, stdout='', stderr='MusicJapan upper API: Response is incomplete, mismatched, or invalid for the requested format\n')
+        with mock.patch.object(bridge.subprocess, 'run', return_value=done), self.assertRaises(ValueError):
+            model.generate('mj-flash-next', 'public')
+        self.assertEqual(model.calls[-1]['reason'], 'UPPER_RESPONSE_INCOMPLETE_OR_INVALID')
+        model = self.model()
+        with mock.patch.object(bridge.subprocess, 'run', side_effect=RuntimeError('private text must never be exported')), self.assertRaises(ValueError):
+            model.generate('mj-flash-next', 'public')
+        self.assertEqual(model.calls[-1]['reason'], 'UPPER_RESPONSE_PROCESSING_FAILED')
+        self.assertNotIn('private text', json.dumps(model.calls))
+
     def test_registered_renderer_only_accepts_its_own_target(self):
         model = self.model(task_id='redline-analysis-html-report')
         renderer = json.dumps({'edits': [{'path': 'render_analysis.py', 'content': '# proposal only\n'}]})
