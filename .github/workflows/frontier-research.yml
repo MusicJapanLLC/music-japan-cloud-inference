@@ -8,6 +8,8 @@ on:
       - 'frontier_registry.py'
       - 'test_frontier_registry.py'
       - 'deliberation_selector.py'
+      - 'language_equivalence.py'
+      - 'test_language_equivalence.py'
       - 'test_deliberation_selector.py'
   workflow_dispatch:
     inputs:
@@ -32,7 +34,7 @@ jobs:
       - name: All dry and adversarial zero-credit tests
         run: |
           set -euo pipefail
-          python3 -m unittest -q test_frontier_registry.py test_deliberation_selector.py test_objective_verifier.py test_reasoning_mesh.py
+          python3 -m unittest -q test_frontier_registry.py test_deliberation_selector.py test_language_equivalence.py test_objective_verifier.py test_reasoning_mesh.py
           python3 deliberation_selector.py --self-check
           python3 frontier_registry.py --out "$RUNNER_TEMP/registry-offline.json"
           python3 frontier_registry.py --verify "$RUNNER_TEMP/registry-offline.json"
