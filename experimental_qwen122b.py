@@ -11,7 +11,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import hashlib
-import http.client
+import http.client as http_client
 import json
 import os
 from pathlib import Path
@@ -98,7 +98,7 @@ def download_part(part:dict,root:Path)->dict:
 def http(key:str,route:str,payload=None,timeout=10):
     if route not in ("/health","/v1/models","/v1/chat/completions"):
         raise ValueError("NON_ALLOWLISTED_LOCAL_API")
-    c=http.client.HTTPConnection("127.0.0.1",PORT,timeout=timeout)
+    c=http_client.HTTPConnection("127.0.0.1",PORT,timeout=timeout)
     headers={"Authorization":"Bearer "+key}
     if payload is not None:headers["Content-Type"]="application/json"
     try:
