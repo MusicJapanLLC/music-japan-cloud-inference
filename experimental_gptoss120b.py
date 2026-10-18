@@ -36,6 +36,10 @@ MIN_RAM_GIB = 12
 PORT = 18895
 LOAD_LIMIT_SECONDS = 480
 MAX_DIAGNOSTIC_BYTES = 128 * 1024
+WEIGHT_DOWNLOAD_ATTEMPTS = 3
+WEIGHT_DOWNLOAD_SECONDS = 1200
+# Transport failures only; HTTP rejections and TLS verification failures stop.
+RETRYABLE_CURL_CODES = frozenset((5, 6, 7, 18, 28, 52, 55, 56, 92))
 
 def local_resources(folder:Path)->dict:
     disk = shutil.disk_usage(folder)
@@ -68,12 +72,39 @@ def retrieve_public_weights(out:Path)->dict:
         return verify_weights(out)
     partial=out.with_suffix(".part")
     partial.unlink(missing_ok=True)
+    deadline=time.monotonic()+WEIGHT_DOWNLOAD_SECONDS
     try:
-        subprocess.run([
-            "curl","--fail","--location","--silent","--show-error",
-            "--retry","1","--max-time","1200",
-            "--output",str(partial),SOURCE
-        ],check=True,timeout=1210)
+        for attempt in range(1,WEIGHT_DOWNLOAD_ATTEMPTS+1):
+            remaining=deadline-time.monotonic()
+            if remaining<=0:
+                raise TimeoutError("WEIGHTS_DOWNLOAD_TIME_BUDGET_EXCEEDED")
+            try:
+                # A fresh curl process recalculates the resume offset each time.
+                # The single deadline includes every attempt and retry delay.
+                subprocess.run([
+                    "curl","--disable","--http1.1","--fail","--location",
+                    "--proto","=https","--proto-redir","=https",
+                    "--silent","--show-error","--continue-at","-",
+                    "--connect-timeout","30","--max-time",str(remaining),
+                    "--output",str(partial),SOURCE
+                ],check=True,timeout=remaining)
+                if time.monotonic()>deadline:
+                    raise TimeoutError("WEIGHTS_DOWNLOAD_TIME_BUDGET_EXCEEDED")
+                break
+            except subprocess.TimeoutExpired:
+                raise TimeoutError("WEIGHTS_DOWNLOAD_TIME_BUDGET_EXCEEDED") from None
+            except subprocess.CalledProcessError as exc:
+                if exc.returncode not in RETRYABLE_CURL_CODES or attempt==WEIGHT_DOWNLOAD_ATTEMPTS:
+                    raise RuntimeError(f"WEIGHTS_DOWNLOAD_CURL_{exc.returncode}") from None
+                print(json.dumps({"phase":"weights_download_retry","attempt":attempt,
+                    "curl_exit_code":exc.returncode,
+                    "resume_bytes":partial.stat().st_size if partial.exists() else 0}),flush=True)
+                remaining=deadline-time.monotonic()
+                if remaining<=0:
+                    raise TimeoutError("WEIGHTS_DOWNLOAD_TIME_BUDGET_EXCEEDED") from None
+                time.sleep(min(attempt,remaining))
+        # This full byte-count and digest check is outside the transfer budget.
+        # No partial or merely downloaded file is published as model weights.
         proof=verify_weights(partial)
         os.replace(partial,out)
         return proof
