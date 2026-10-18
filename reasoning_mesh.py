@@ -25,6 +25,7 @@ import sys
 import time
 from cloud_probe import normalized, signed_record, verify
 from cloud_infer_frontier import CHALLENGES, MODEL_MAP, available, download, grade
+from objective_verifier import apply_verifier
 
 SCHEMA = "mj.reasoning-mesh-stage/1.0"
 REPORT_SCHEMA = "mj.reasoning-mesh-comparison/1.0"
@@ -267,6 +268,17 @@ def evaluate(proposal:dict,challenge:dict,synthesis:dict)->dict:
                        proposal["items"][i]["answer"]!=synthesis["items"][i]["answer"])})
     counts={stage:sum(row["scores"][stage]["passed"] for row in rows)
             for stage in STAGES}
+    tool_results=[]
+    for i,case in enumerate(CHALLENGES[:len(ids)]):
+        corrected=apply_verifier(case["prompt"], synthesis["items"][i]["answer"])
+        tool_results.append({
+            "id":case["id"],
+            "source":corrected["source"],
+            "independent_verification":corrected["verification"]["status"],
+            "tool_corrected_answer":corrected["final_answer"][:200],
+            "tool_assisted_passed":grade(corrected["final_answer"],case),
+        })
+    tool_corrected=sum(x["tool_assisted_passed"] for x in tool_results)
     report=signed_record({
         "schema":REPORT_SCHEMA,
         "evaluation_only_not_an_oracle_router":True,
@@ -276,6 +288,15 @@ def evaluate(proposal:dict,challenge:dict,synthesis:dict)->dict:
         "paid_cloud_created":False,
         "tasks":len(rows),
         "scores":counts,
+        "tool_assisted_score":tool_corrected,
+        "tool_assisted_extra_vs_model":tool_corrected-counts["synthesize"],
+        "tool_verified_or_corrected_cases":sum(
+            x["source"]!="model_unverified" for x in tool_results),
+        "tool_correction_cases":sum(
+            x["source"]=="deterministic_tool_correction" for x in tool_results),
+        "tool_results":tool_results,
+        "tool_method_does_not_use_gold_answer_keys":True,
+        "model_only_and_tool_assisted_scores_separate":True,
         "change_from_proposal":counts["synthesize"]-counts["propose"],
         "total_inference_latency_seconds":round(sum(
             item["latency_seconds"]
