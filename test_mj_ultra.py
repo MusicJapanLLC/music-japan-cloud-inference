@@ -69,6 +69,8 @@ class UltraControlTests(unittest.TestCase):
         self.assertEqual(captured[0][0][0],"gh")
         self.assertTrue(captured[0][1]["capture_output"])
         self.assertNotIn("shell",captured[0][1])
+        self.assertEqual(captured[0][1]["encoding"],"utf-8")
+        self.assertEqual(captured[0][1]["errors"],"replace")
     def test_gh_error_redacted(self):
         class Outcome:
             returncode=2
