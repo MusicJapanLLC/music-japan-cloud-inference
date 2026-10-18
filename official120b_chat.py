@@ -23,6 +23,7 @@ import time
 import experimental_gptoss120b as model120b
 from cloud_probe import normalized,signed_record
 from objective_verifier import apply_verifier
+from reasoning_profiles import profile as reasoning_profile, validate_proposal
 
 SCHEMA="mj.official-open-120b-chat/1.0"
 MAX_PUBLIC_PROMPT_CHARS=3200
@@ -46,24 +47,27 @@ def check_limits(rounds:int, tokens:int, effort:str)->None:
     if effort not in ("low","medium","high"):
         raise ValueError("INVALID_THINKING_LEVEL")
 
-def prompt_for_round(question:str, earlier:list[str])->str:
+def prompt_for_round(question:str, earlier:list[str], proposal_context:str="")->str:
     if not earlier:
+        external = ("\n\nEARLIER INDEPENDENT PUBLIC OPEN-WEIGHT MODEL PROPOSAL (may be wrong):\n"+
+                    proposal_context[:1600]) if proposal_context else ""
         return ("Solve the following problem thoroughly. Check arithmetic, "
                 "evidence, edge cases and instructions before giving your final answer. "
-                "Do not claim certainty without support.\nQUESTION:\n"+question)
+                "Do not claim certainty without support.\nQUESTION:\n"+question+external)
     return ("Reconsider this from first principles. The previous proposal may "
             "contain subtle errors. Identify contradictions, re-evaluate all "
             "assumptions, and return only your strongest final response.\n"
             "ORIGINAL QUESTION:\n"+question+
             "\nEARLIER PROPOSAL:\n"+earlier[-1][:4000])
 
-def model_body(question:str, answers:list[str], effort:str, tokens:int)->dict:
+def model_body(question:str, answers:list[str], effort:str, tokens:int,
+               proposal_context:str="")->dict:
     check_limits(1,tokens,effort)
     return {
         "model":model120b.ID,
         "messages":[
             {"role":"system","content":"You are Music Japan's open-weight research reasoning model. Be accurate and mark uncertainties."},
-            {"role":"user","content":prompt_for_round(question,answers)}
+            {"role":"user","content":prompt_for_round(question,answers,proposal_context)}
         ],
         "reasoning_effort":effort,
         "chat_template_kwargs":{"reasoning_effort":effort},
@@ -89,7 +93,9 @@ def extract_answer(status:int, data:dict)->tuple[str,int,int]:
 
 def run(question:str,exe:Path,weights:Path,outfile:Path,
         rounds:int=1,tokens:int=512,effort:str="high",
-        budget_seconds:int=TOTAL_RUN_SECONDS)->dict:
+        budget_seconds:int=TOTAL_RUN_SECONDS,
+        proposal_context:str="",proposal_receipt_sha:str|None=None,
+        research_mode:str|None=None)->dict:
     question=check_prompt(question)
     check_limits(rounds,tokens,effort)
     if not exe.is_file() or not weights.is_file():
@@ -131,7 +137,7 @@ def run(question:str,exe:Path,weights:Path,outfile:Path,
                 elapsed=time.monotonic()-start
                 if elapsed>=budget_seconds-80:
                     raise TimeoutError("HIGH_REASONING_TIME_BUDGET_EXCEEDED")
-                payload=model_body(question,outputs,effort,tokens)
+                payload=model_body(question,outputs,effort,tokens,proposal_context)
                 before=time.monotonic()
                 st,res=model120b.client(key,"/v1/chat/completions",payload,
                          timeout=min(900,max(80,int(budget_seconds-elapsed))))
@@ -155,6 +161,9 @@ def run(question:str,exe:Path,weights:Path,outfile:Path,
                 "model_size_bytes":model120b.SIZE_BYTES,
                 "model_original_gpt6":False,
                 "model_original_openai_gpt_oss_120b":True,
+                "research_mode":research_mode or "direct_120b",
+                "draft_proposal_receipt_sha256":proposal_receipt_sha,
+                "external_open_model_proposal_applied":bool(proposal_context),
                 "actual_local_120b_inference":True,
                 "public_prompt_hash":hashlib.sha256(question.encode("utf8")).hexdigest(),
                 "raw_user_prompt_saved":False,
@@ -192,13 +201,28 @@ def main(argv=None):
     parser.add_argument("--effort",choices=("low","medium","high"),default="high")
     parser.add_argument("--tokens",type=int,default=512)
     parser.add_argument("--execute",action="store_true")
+    parser.add_argument("--mode",choices=("max","ultra"),help="Use 20B draft evidence then official open 120B with configured high-effort budget")
+    parser.add_argument("--proposal-receipt",type=Path,help="SHA-verified 20B source model evidence for the same public question")
     args=parser.parse_args(argv)
+    if args.mode:
+        preset=reasoning_profile(args.mode)
+        args.rounds=preset["final_rounds"]
+        args.tokens=preset["final_tokens_per_round"]
+        args.effort=preset["final_effort"]
     check_limits(args.rounds,args.tokens,args.effort)
     if not args.execute:
         print(json.dumps({"status":"DRY_RUN","model":model120b.ID,
             "provider_model_credits":0,"inference":False,"rounds":args.rounds}))
         return 0
     question=check_prompt(os.getenv("MJ_PUBLIC_RESEARCH_QUESTION",""))
+    proposal_text=""
+    proposal_sha=None
+    if args.mode:
+        if args.proposal_receipt is None or not args.proposal_receipt.is_file():
+            raise ValueError("MAX_ULTRA_REQUIRE_VERIFIED_20B_PROPOSAL")
+        source=json.loads(args.proposal_receipt.read_text("utf8"))
+        proposal_text=validate_proposal(source,question,args.mode)
+        proposal_sha=source["sha256"]
     args.weights_dir.mkdir(parents=True,exist_ok=True)
     args.out.parent.mkdir(parents=True,exist_ok=True)
     obs=model120b.local_resources(args.weights_dir)
@@ -208,7 +232,9 @@ def main(argv=None):
     print(json.dumps({"phase":"sha_verified","size":loaded["bytes"],
         "sha256":loaded["sha256"]}),flush=True)
     run(question,args.binary,args.weights_dir/model120b.FILENAME,args.out,
-        rounds=args.rounds,tokens=args.tokens,effort=args.effort)
+        rounds=args.rounds,tokens=args.tokens,effort=args.effort,
+        proposal_context=proposal_text,proposal_receipt_sha=proposal_sha,
+        research_mode=args.mode)
     return 0
 
 if __name__=="__main__":
