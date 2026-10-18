@@ -1,0 +1,94 @@
+{
+  "schema": "mj.redline397b.higher-quant-manifests/1.0",
+  "source_url": "https://huggingface.co/api/models/bartowski/Qwen_Qwen3.5-397B-A17B-GGUF/revision/69ed2f05fdcea0e9a880dd4c518be64c01663157?blobs=true",
+  "revision": "69ed2f05fdcea0e9a880dd4c518be64c01663157",
+  "profiles": {
+    "IQ1_M": {
+      "base": "Qwen/Qwen3.5-397B-A17B",
+      "repo": "bartowski/Qwen_Qwen3.5-397B-A17B-GGUF",
+      "revision": "69ed2f05fdcea0e9a880dd4c518be64c01663157",
+      "alias": "qwen3.5-397b-a17b-iq1m",
+      "quantization": "IQ1_M",
+      "parameters_billions": 397,
+      "active_billions": 17,
+      "license": "Apache-2.0",
+      "parts": [
+        {
+          "path": "Qwen_Qwen3.5-397B-A17B-IQ1_M/Qwen_Qwen3.5-397B-A17B-IQ1_M-00001-of-00003.gguf",
+          "size": 39770892864,
+          "sha256": "e43e39fec280ae761baa834f86e6337083526156828f8a671d347fb00b410445"
+        },
+        {
+          "path": "Qwen_Qwen3.5-397B-A17B-IQ1_M/Qwen_Qwen3.5-397B-A17B-IQ1_M-00002-of-00003.gguf",
+          "size": 39537049920,
+          "sha256": "65b305aad51bf6207ac309add773f219fb1570ff687aa4e3c995829bd0dcf521"
+        },
+        {
+          "path": "Qwen_Qwen3.5-397B-A17B-IQ1_M/Qwen_Qwen3.5-397B-A17B-IQ1_M-00003-of-00003.gguf",
+          "size": 18972670048,
+          "sha256": "cda5f735f91f3ab0788cef24e51c06a3046f9806736703b62e7cade848cde018"
+        }
+      ]
+    },
+    "IQ2_XXS": {
+      "base": "Qwen/Qwen3.5-397B-A17B",
+      "repo": "bartowski/Qwen_Qwen3.5-397B-A17B-GGUF",
+      "revision": "69ed2f05fdcea0e9a880dd4c518be64c01663157",
+      "alias": "qwen3.5-397b-a17b-iq2xxs",
+      "quantization": "IQ2_XXS",
+      "parameters_billions": 397,
+      "active_billions": 17,
+      "license": "Apache-2.0",
+      "parts": [
+        {
+          "path": "Qwen_Qwen3.5-397B-A17B-IQ2_XXS/Qwen_Qwen3.5-397B-A17B-IQ2_XXS-00001-of-00003.gguf",
+          "size": 39828130624,
+          "sha256": "ec798ea2ba8a6d55c9a413bf16e0afdae0f38fba5bea7e40dfeb726b7a032407"
+        },
+        {
+          "path": "Qwen_Qwen3.5-397B-A17B-IQ2_XXS/Qwen_Qwen3.5-397B-A17B-IQ2_XXS-00002-of-00003.gguf",
+          "size": 39901043776,
+          "sha256": "9fc9fdbf995dbc73dc834e7d7396cd5fdc77c422b2e458a81c9e809e71923e61"
+        },
+        {
+          "path": "Qwen_Qwen3.5-397B-A17B-IQ2_XXS/Qwen_Qwen3.5-397B-A17B-IQ2_XXS-00003-of-00003.gguf",
+          "size": 33521957984,
+          "sha256": "5ffe088d9d54233cc26bdb0327c25e2d073714bca9f7b732ebe2b9e0103a8150"
+        }
+      ]
+    },
+    "IQ2_XS": {
+      "base": "Qwen/Qwen3.5-397B-A17B",
+      "repo": "bartowski/Qwen_Qwen3.5-397B-A17B-GGUF",
+      "revision": "69ed2f05fdcea0e9a880dd4c518be64c01663157",
+      "alias": "qwen3.5-397b-a17b-iq2xs",
+      "quantization": "IQ2_XS",
+      "parameters_billions": 397,
+      "active_billions": 17,
+      "license": "Apache-2.0",
+      "parts": [
+        {
+          "path": "Qwen_Qwen3.5-397B-A17B-IQ2_XS/Qwen_Qwen3.5-397B-A17B-IQ2_XS-00001-of-00004.gguf",
+          "size": 39739390048,
+          "sha256": "9ef70ae62bf0b0bb4768652deb85c6eb6c6577ee2fd8bcc45fb2a153fb8ceea0"
+        },
+        {
+          "path": "Qwen_Qwen3.5-397B-A17B-IQ2_XS/Qwen_Qwen3.5-397B-A17B-IQ2_XS-00002-of-00004.gguf",
+          "size": 39417249888,
+          "sha256": "0b7c0143c518348588007d94a00736512cb79696f22a63dc22e81685f3f28795"
+        },
+        {
+          "path": "Qwen_Qwen3.5-397B-A17B-IQ2_XS/Qwen_Qwen3.5-397B-A17B-IQ2_XS-00003-of-00004.gguf",
+          "size": 39346997184,
+          "sha256": "5ff0ac9acd96f27b1721291b4e30202dc7c30255be937a75f84c200781b04e55"
+        },
+        {
+          "path": "Qwen_Qwen3.5-397B-A17B-IQ2_XS/Qwen_Qwen3.5-397B-A17B-IQ2_XS-00004-of-00004.gguf",
+          "size": 6898394080,
+          "sha256": "dadcc9c590fd056d3cbb3d01f121629cde925c4544db440280db2e348faee194"
+        }
+      ]
+    }
+  }
+}
+

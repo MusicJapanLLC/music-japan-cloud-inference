@@ -1,80 +1,73 @@
-name: Music Japan Beyond 120B — Official 235B Thinking and 397B MoE
+name: REDLINE existing 397B bounded public evaluation
 on:
-  push:
-    branches:
-      - feature/mj-beyond-120b-235b-397b-cloud-20261018
-    paths:
-      - '.github/workflows/beyond120-openweights.yml'
-      - 'beyond120_openweight.py'
-      - 'test_beyond120_openweight.py'
   workflow_dispatch:
     inputs:
-      run_public_models:
-        type: boolean
+      quant:
+        type: choice
+        options: [IQ1_S, IQ1_M, IQ2_XXS, IQ2_XS, best-fit]
+        default: IQ1_S
         required: true
+        description: 'IQ1_S baseline; higher tiers unmeasured; best-fit selects one tier after actual capacity checks'
+      cleanup_unused_sdks:
+        type: boolean
         default: false
-        description: 'Run SHA-pinned 235B IQ2 and 397B IQ1 on 2 independent free public Linux CPUs'
+        required: true
+        description: 'Optionally remove only allowlisted unused SDKs on this disposable hosted runner'
 permissions:
   contents: read
 concurrency:
-  group: mj-beyond120-${{ github.ref }}
+  group: redline397b-manual
   cancel-in-progress: false
 jobs:
-  validate:
-    name: Validate strict 235B/397B weight identities, resource gates and zero-credits
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-        with: {persist-credentials: false}
-      - name: Dry run and source integrity tests (no model downloads)
-        run: |
-          set -euo pipefail
-          python3 -m unittest -q test_beyond120_openweight.py
-          python3 beyond120_openweight.py --profile thinking-235b-iq2m --binary unused --data "$RUNNER_TEMP" --out "$RUNNER_TEMP/a.json"
-          python3 beyond120_openweight.py --profile frontier-397b-iq1s --binary unused --data "$RUNNER_TEMP" --out "$RUNNER_TEMP/b.json"
-  real-inference:
-    name: Separate real Linux machine — ${{ matrix.profile }}
-    needs: validate
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_public_models == true }}
+  evaluate:
+    if: ${{ github.repository == 'MusicJapanLLC/music-japan-cloud-inference' && github.event.repository.private == false && github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 55
-    strategy:
-      fail-fast: false
-      matrix:
-        profile: ['thinking-235b-iq2m', 'frontier-397b-iq1s']
     steps:
-      - uses: actions/checkout@v4
-        with: {persist-credentials: false}
-      - name: Confirm actual owner-authorized public Linux machine
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Offline contract tests and public input identity
+        working-directory: redline397b
         run: |
           set -euo pipefail
-          python3 cloud_probe.py
-          python3 -m unittest -q test_beyond120_openweight.py
-      - name: Compile real CPU inference runtime on this separate Linux machine
-        shell: bash
+          python3 -m unittest discover -v
+          python3 redline397b.py
+      - name: Optional measured unused SDK cleanup on disposable runner
+        if: ${{ inputs.cleanup_unused_sdks == true }}
+        working-directory: redline397b
         run: |
           set -euo pipefail
-          git clone --quiet --depth 1 https://github.com/ggml-org/llama.cpp.git "$RUNNER_TEMP/llama.cpp"
+          python3 clean_runner.py --execute > "$RUNNER_TEMP/redline397b-cleanup.json"
+      - name: Build the fully pinned CPU runtime
+        run: |
+          set -euo pipefail
+          git init --quiet "$RUNNER_TEMP/llama.cpp"
+          git -C "$RUNNER_TEMP/llama.cpp" remote add origin https://github.com/ggml-org/llama.cpp.git
+          git -C "$RUNNER_TEMP/llama.cpp" fetch --quiet --depth 1 origin 547208dca250ceb3e4c8615598d043f2b602a527
+          git -C "$RUNNER_TEMP/llama.cpp" checkout --quiet --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/llama.cpp" rev-parse HEAD)" = 547208dca250ceb3e4c8615598d043f2b602a527
           cmake -S "$RUNNER_TEMP/llama.cpp" -B "$RUNNER_TEMP/llama.cpp/build" -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DGGML_CUDA=OFF -DLLAMA_CURL=OFF
           cmake --build "$RUNNER_TEMP/llama.cpp/build" --config Release --target llama-server -j 4
-      - name: Fetch SHA-pinned public 235B or 397B GGUF and attempt actual one-shot inference
-        shell: bash
+      - name: One model load and three bounded public security cases
+        working-directory: redline397b
         env:
+          SELECTED_QUANT: ${{ inputs.quant }}
           HF_HUB_DISABLE_TELEMETRY: '1'
         run: |
           set -euo pipefail
-          python3 beyond120_openweight.py --execute \
-            --profile "${{ matrix.profile }}" \
+          python3 redline397b.py --execute-public-synthetic --quant "$SELECTED_QUANT" \
             --binary "$RUNNER_TEMP/llama.cpp/build/bin/llama-server" \
+            --runtime-source "$RUNNER_TEMP/llama.cpp" \
             --data "$RUNNER_TEMP/model-shards" \
-            --out "$RUNNER_TEMP/real-beyond120.json" \
-            --tasks 1
-      - name: Upload model output or load diagnostic receipt only, never weights
+            --out "$RUNNER_TEMP/redline397b-result.json"
+      - name: Preserve small receipts only
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: true-beyond120-${{ matrix.profile }}-evidence
-          path: ${{ runner.temp }}/real-beyond120.json
+          name: redline397b-${{ inputs.quant }}-evidence
+          path: |
+            ${{ runner.temp }}/redline397b-result.json
+            ${{ runner.temp }}/redline397b-cleanup.json
           retention-days: 1
-          if-no-files-found: ignore
+          if-no-files-found: warn

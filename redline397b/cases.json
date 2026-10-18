@@ -1,0 +1,39 @@
+{
+  "schema": "mj.redline.public-synthetic-cases/1.0",
+  "public_synthetic_only": true,
+  "cases": [
+    {
+      "id": "ownership-unscoped",
+      "evidence_id": "E1",
+      "assumptions": "Authenticated user. No row-level security or other ownership check. Invoice rows belong to individual users.",
+      "source": "def invoice(db, user, invoice_id):\n    return db.execute('SELECT id,total FROM invoices WHERE id = ?', (invoice_id,)).fetchone()",
+      "expected": {
+        "label": "IDOR",
+        "evidence": [
+          "E1"
+        ]
+      }
+    },
+    {
+      "id": "ownership-scoped",
+      "evidence_id": "E2",
+      "assumptions": "Authenticated user.id is server-trusted. Missing result returns 404. No other code is in scope.",
+      "source": "def invoice(db, user, invoice_id):\n    return db.execute('SELECT id,total FROM invoices WHERE id = ? AND owner_id = ?', (invoice_id, user.id)).fetchone()",
+      "expected": {
+        "label": "CLEAR",
+        "evidence": []
+      }
+    },
+    {
+      "id": "bound-sql",
+      "evidence_id": "E3",
+      "assumptions": "Authenticated user.id is server-trusted. sqlite3 execute binds ? parameters as values. No other code is in scope.",
+      "source": "def search(db, user, term):\n    return db.execute('SELECT id FROM invoices WHERE owner_id = ? AND title LIKE ?', (user.id, '%' + term + '%')).fetchall()",
+      "expected": {
+        "label": "CLEAR",
+        "evidence": []
+      }
+    }
+  ]
+}
+
