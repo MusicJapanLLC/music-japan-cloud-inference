@@ -52,8 +52,9 @@ try {
   $acl.SetOwner($sid)
   $acl.SetAccessRuleProtection($true, $false)
   $rights = [Security.AccessControl.FileSystemRights]::Read -bor [Security.AccessControl.FileSystemRights]::Write
-  $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule(
-      $sid, $rights, [Security.AccessControl.AccessControlType]::Allow)))
+  $rule = [Security.AccessControl.FileSystemAccessRule]::new(
+      $sid, $rights, [Security.AccessControl.AccessControlType]::Allow)
+  $acl.AddAccessRule($rule)
   [IO.File]::SetAccessControl($tmp, $acl)
   [IO.File]::Move($tmp, $destination)
   $tmp = $null
