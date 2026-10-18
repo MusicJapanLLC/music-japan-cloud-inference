@@ -72,15 +72,27 @@ def validate_draft(q:str,p:dict,d:dict)->str:
 def decide(q:str,p:dict,d:dict)->dict:
     output=validate_draft(q,p,d)
     independent=check_answer(q,output)
-    last=(d.get("rounds_evidence") or [{}])[-1].get("answer","")
-    if not isinstance(last,str) or not last.strip():raise ValueError("DRAFT_TEXT_EMPTY")
-    bypass=(p["requested_mode"]=="auto" and independent["status"]=="VERIFIED")
+    raw_rounds=d.get("rounds_evidence") or []
+    if not isinstance(raw_rounds,list) or not raw_rounds:
+        raise ValueError("DRAFT_NO_ROUND_PROOF")
+    for item in raw_rounds:
+        if not isinstance(item,dict) or not isinstance(item.get("answer"),str) or not item["answer"].strip():
+            raise ValueError("DRAFT_TEXT_EMPTY")
+    last=raw_rounds[-1]["answer"]
+    checks=[check_answer(q,item["answer"]) for item in raw_rounds]
+    raw_all_verified=all(x["status"]=="VERIFIED" for x in checks)
+    exhausted=any(item.get("output_tokens",0)>=p["20b_tokens"]-8 for item in raw_rounds)
+    bypass=(p["requested_mode"]=="auto" and independent["status"]=="VERIFIED"
+            and raw_all_verified and not exhausted)
     return signed_record({
         "schema":DECISION,"question_sha256":p["question_sha256"],
         "plan_sha256":p["sha256"],"draft_sha256":d["sha256"],
         "real_20b":MODEL20["model"],
         "draft_verification":independent["status"],
-        "last_raw_20b_verification":check_answer(q,last)["status"],
+        "last_raw_20b_verification":checks[-1]["status"],
+        "independently_verified_raw_rounds":sum(x["status"]=="VERIFIED" for x in checks),
+        "raw_round_count":len(raw_rounds),
+        "truncated_output_detected":exhausted,
         "escalate_to_120b":not bypass,"route":"EARLY_VERIFIED" if bypass else "REAL_120B",
         "preset":p["preset"],"new_spend_usd":0,"model_api_credits":0})
 
