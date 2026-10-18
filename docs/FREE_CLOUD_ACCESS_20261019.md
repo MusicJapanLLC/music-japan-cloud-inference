@@ -99,10 +99,10 @@ catalogが一致しなければ生成POSTへ進みません。429、認証要求
 
 対象リポジトリは[MusicJapanLLC/music-japan-cloud-inference](https://github.com/MusicJapanLLC/music-japan-cloud-inference)です。
 
-今回の実装・workflowは`fix/1650b-cloud-gb300-20261019`ブランチにあります。
+実装とworkflowは[PR #14](https://github.com/MusicJapanLLC/music-japan-cloud-inference/pull/14)から`main`へ統合済みです（merge commit `69588f4a462967b7ba3897b7dce685fbc186be87`）。開発ブランチは`fix/1650b-cloud-gb300-20261019`です。
 
-- [CLI](https://github.com/MusicJapanLLC/music-japan-cloud-inference/blob/fix/1650b-cloud-gb300-20261019/free_cloud_inference.py)
-- [Free public model verificationの定義](https://github.com/MusicJapanLLC/music-japan-cloud-inference/blob/fix/1650b-cloud-gb300-20261019/.github/workflows/free-cloud-verification.yml)
+- [CLI](https://github.com/MusicJapanLLC/music-japan-cloud-inference/blob/main/free_cloud_inference.py)
+- [Free public model verificationの定義](https://github.com/MusicJapanLLC/music-japan-cloud-inference/blob/main/.github/workflows/free-cloud-verification.yml)
 - [Actionsの実行一覧](https://github.com/MusicJapanLLC/music-japan-cloud-inference/actions)
 
 workflowは公開リポジトリの標準`ubuntu-24.04` runnerを使います。モデルへのHTTP要求と検証処理はGitHub側で動くため、Windows PCやRemote Desktopの起動に依存しません。モデルの重みをGitHub runnerへ載せる実装ではなく、既存の公開運営者のAPIへ接続する実装です。
@@ -118,7 +118,7 @@ GitHub公式の料金説明では、公開リポジトリの標準GitHub-hosted 
 - 指定ブランチの対象ファイルpushに`[run-free-model-check]`マーカーを明示した場合も実行対象になる
 - 同じrunの再実行では実推論jobを起動しない
 
-workflowの定義がブランチにあることと、GitHubで手動起動可能な状態になっていることは別です。画面/APIからの起動可否はGitHub側のworkflow登録状態も確認してください。
+GitHubのActionsで`Free public model verification`を開き、`Run workflow`から`main`を選択します。`run_free_check=true`、モデル`deepseek-flash-0731`を指定した場合だけ、無料の合成課題を1回送信します。チェックを入れない場合はオフライン確認だけです。
 
 ### 今回の実行結果
 
