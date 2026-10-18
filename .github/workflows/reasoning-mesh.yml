@@ -36,7 +36,7 @@ jobs:
       - name: Static tests and no-network dry run
         run: |
           set -euo pipefail
-          python3 -m unittest -q test_reasoning_mesh.py test_objective_verifier.py test_cloud_probe.py test_cloud_infer_frontier.py
+          python3 -m unittest -q test_reasoning_mesh.py test_deliberation_selector.py test_objective_verifier.py test_cloud_probe.py test_cloud_infer_frontier.py
           for stage in propose challenge synthesize; do
             python3 reasoning_mesh.py --stage "$stage"
           done
@@ -206,5 +206,43 @@ jobs:
         with:
           name: mesh-evaluation
           path: ${{ runner.temp }}/mesh-evaluation.json
+          retention-days: 7
+          if-no-files-found: error
+
+  deliberate:
+    needs: synthesize
+    name: Final-plus — independently grounded output with uncertainty reporting
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: mesh-propose
+          path: ${{ runner.temp }}/proposer
+      - uses: actions/download-artifact@v4
+        with:
+          name: mesh-challenge
+          path: ${{ runner.temp }}/challenger
+      - uses: actions/download-artifact@v4
+        with:
+          name: mesh-synthesis
+          path: ${{ runner.temp }}/synthesizer
+      - name: Select and verify answers from three SHA-chained real-model receipts
+        run: |
+          set -euo pipefail
+          python3 -m unittest -q test_deliberation_selector.py test_objective_verifier.py
+          python3 deliberation_selector.py \
+            --proposal "$RUNNER_TEMP/proposer/propose.json" \
+            --critique "$RUNNER_TEMP/challenger/challenge.json" \
+            --synthesis "$RUNNER_TEMP/synthesizer/synthesis.json" \
+            --out "$RUNNER_TEMP/final-deliberation.json" \
+            --audit
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mesh-independent-final
+          path: ${{ runner.temp }}/final-deliberation.json
           retention-days: 7
           if-no-files-found: error
