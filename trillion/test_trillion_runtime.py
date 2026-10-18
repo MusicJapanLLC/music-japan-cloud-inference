@@ -1,6 +1,7 @@
 """Offline execution-contract tests, not 1.6T inference or GPU benchmarks."""
 import copy
 import hashlib
+import io
 import json
 from pathlib import Path
 import tempfile
@@ -31,6 +32,12 @@ def lock():
 def gpus():
     return [{'uuid':'GPU-'+str(i),'name':'H200','total_bytes':141*2**30,
              'free_bytes':140*2**30,'compute_capability':9.0} for i in range(8)]
+
+
+def gb300_gpus():
+    return [{'uuid':'GPU-GB300-'+str(i),'name':'NVIDIA GB300',
+             'total_bytes':288*2**30,'free_bytes':287*2**30,
+             'compute_capability':10.3} for i in range(4)]
 
 
 class ModelLockTests(unittest.TestCase):
@@ -126,6 +133,45 @@ class PreflightTests(unittest.TestCase):
         self.assertFalse(p['model_inference_verified'])
         self.assertTrue(p['memory_requirement_is_estimate'])
 
+    def test_four_gb300_cards_require_the_explicit_supported_profile(self):
+        self.assertFalse(r.preflight(lock(),gb300_gpus(),'0.25.0')['eligible_for_launch'])
+        p=r.preflight(lock(),gb300_gpus(),'0.25.0',profile='gb300-4')
+        self.assertTrue(p['eligible_for_launch'])
+        self.assertEqual((p['required_gpus'],p['tensor_parallel_size'],p['data_parallel_size']),(4,1,4))
+        self.assertEqual(p['minimum_free_bytes_per_gpu'],268897038688)
+        self.assertFalse(p['topology_verified'])
+        self.assertFalse(p['weights_verified'])
+        self.assertFalse(p['model_inference_verified'])
+        self.assertEqual((p['new_gpu_allocations'],p['model_provider_api_calls']),(0,0))
+
+    def test_gb300_profile_checks_every_card_not_only_aggregate_vram(self):
+        cards=gb300_gpus()
+        reserve=r.preflight(lock(),cards,'0.25.0',profile='gb300-4')['minimum_free_bytes_per_gpu']
+        cards[0]['free_bytes']=reserve
+        self.assertTrue(r.preflight(lock(),cards,'0.25.0',profile='gb300-4')['eligible_for_launch'])
+        cards[0]['free_bytes']-=1
+        p=r.preflight(lock(),cards,'0.25.0',profile='gb300-4')
+        self.assertFalse(p['eligible_for_launch'])
+        self.assertIn('FREE_VRAM_BELOW_PLANNING_RESERVE',p['reasons'])
+
+    def test_gb300_profile_rejects_wrong_card_count_architecture_and_engine(self):
+        cases=[(gb300_gpus()[:3],'0.25.0'),
+               (gb300_gpus()+[{**gb300_gpus()[0],'uuid':'GPU-extra'}],'0.25.0'),
+               ([{**c,'compute_capability':9.0} for c in gb300_gpus()],'0.25.0'),
+               ([{**c,'compute_capability':12.0} for c in gb300_gpus()],'0.25.0'),
+               (gb300_gpus(),'0.20.0')]
+        for cards,version in cases:
+            with self.subTest(cards=cards,version=version):
+                self.assertFalse(r.preflight(lock(),cards,version,profile='gb300-4')['eligible_for_launch'])
+
+    def test_unknown_profiles_cannot_bypass_preflight_or_inject_flags(self):
+        for profile in ('gb300-8','auto','gb300-4 --host 0.0.0.0',None,4,True):
+            with self.subTest(profile=profile):
+                with self.assertRaises(r.ContractError):
+                    r.preflight(lock(),gb300_gpus(),'0.25.0',profile=profile)
+                with self.assertRaises(r.ContractError):
+                    r.build_command(Path('/owned/w'),profile=profile)
+
     def test_occupied_or_old_cards_and_old_engine_rejected(self):
         cases=[([{**x,'free_bytes':32*2**30} for x in gpus()],'0.25.0'),
                ([{**x,'compute_capability':8.0} for x in gpus()],'0.25.0'),
@@ -147,11 +193,44 @@ class PreflightTests(unittest.TestCase):
         self.assertEqual(spec['num_speculative_tokens'],7)
         self.assertNotIn('synthetic',json.dumps(spec))
 
+    def test_gb300_command_uses_publisher_dp_ep_kernel_recipe_and_owner_guards(self):
+        cmd=r.build_command(Path('/owned/weights'),32768,profile='gb300-4')
+        for flag,value in {'--tensor-parallel-size':'1','--data-parallel-size':'4',
+                           '--data-parallel-size-local':'4','--data-parallel-backend':'mp',
+                           '--kv-cache-dtype':'fp8','--block-size':'256',
+                           '--moe-backend':'deep_gemm_mega_moe','--max-num-seqs':'1',
+                           '--host':'127.0.0.1','--served-model-name':r.SERVED_MODEL}.items():
+            self.assertEqual(cmd[cmd.index(flag)+1],value)
+        self.assertIn('--enable-expert-parallel',cmd)
+        self.assertEqual(json.loads(cmd[cmd.index('--attention-config')+1]),{'use_fp4_indexer_cache':True})
+        self.assertEqual(json.loads(cmd[cmd.index('--speculative-config')+1]),
+                         {'method':'dspark','num_speculative_tokens':7,'draft_sample_method':'greedy'})
+        self.assertNotIn('--trust-remote-code',cmd)
+        self.assertNotIn('--cpu-offload-gb',cmd)
+        self.assertEqual(cmd[2],str(Path('/owned/weights').resolve()))
+
     def test_baseline_arm_disables_only_speculation(self):
-        a=r.build_command(Path('/owned/w'),8192,speculation=True)
-        b=r.build_command(Path('/owned/w'),8192,speculation=False)
-        i=a.index('--speculative-config');del a[i:i+2]
-        self.assertEqual(a,b)
+        for profile in ('cuda-8','gb300-4'):
+            with self.subTest(profile=profile):
+                a=r.build_command(Path('/owned/w'),8192,speculation=True,profile=profile)
+                b=r.build_command(Path('/owned/w'),8192,speculation=False,profile=profile)
+                i=a.index('--speculative-config');del a[i:i+2]
+                self.assertEqual(a,b)
+
+    def test_cli_profile_selection_plans_without_loading_weights_or_credentials(self):
+        with mock.patch.object(r,'read_lock',return_value=lock()), \
+             mock.patch.object(r,'collect_gpus',return_value=gb300_gpus()), \
+             mock.patch.object(r.importlib.metadata,'version',return_value='0.25.0'), \
+             mock.patch.object(r,'verify_snapshot') as verify, \
+             mock.patch.object(r.subprocess,'run') as run, \
+             mock.patch('sys.stdout',new_callable=io.StringIO) as output:
+            result=r.main(['--lock','unused','--weights-dir','unused',
+                           '--profile','gb300-4','--api-key-file','must-not-be-read'])
+        self.assertEqual(result,0)
+        report=json.loads(output.getvalue())
+        self.assertEqual((report['mode'],report['profile']),('plan','gb300-4'))
+        self.assertEqual(report['command'][report['command'].index('--data-parallel-size')+1],'4')
+        verify.assert_not_called();run.assert_not_called()
 
     def test_context_and_shell_injection_inputs_not_accepted(self):
         for context in (0,1024,1048576,True):

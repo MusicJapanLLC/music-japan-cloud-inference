@@ -10,6 +10,12 @@ on:
       - 'trillion/**'
       - '.github/workflows/trillion-runtime.yml'
   workflow_dispatch:
+    inputs:
+      allow_one_paid_call:
+        description: 'Authorize one DeepSeek API canary (128 output tokens, reviewed estimate below USD 0.01)'
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -46,3 +52,134 @@ jobs:
         run: python trillion/trillion_runtime.py --lock trillion/model.lock.json --weights-dir unused-not-downloaded --context 32768
       - name: Verify client is non-executing by default
         run: python trillion/trillion_client.py
+      - name: Verify official four-GB300 configuration without starting a model
+        run: python trillion/trillion_runtime.py --weights-dir unused-not-downloaded --profile gb300-4 --context 8192
+      - name: Verify official cloud adapter is non-executing by default
+        run: python trillion/trillion_cloud.py
+
+  official-model-metadata:
+    name: Verify the live official 0813 route without inference
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Read the public model mapping once with the real cloud transport
+        run: |
+          python - <<'PY'
+          import json, os, sys
+          from pathlib import Path
+          sys.path.insert(0, 'trillion')
+          from trillion_cloud import FixedHTTPS, verify_mapping, wall_timeout
+          transport = FixedHTTPS(20)
+          with wall_timeout(30):
+              receipt = verify_mapping(transport.mapping())
+          receipt.update({
+              'execution_origin': 'GitHub-hosted ubuntu-24.04',
+              'transport': 'FixedHTTPS direct TLS; no proxy environment',
+              'commit_sha': os.environ['GITHUB_SHA'], 'run_id': os.environ['GITHUB_RUN_ID'],
+              'metadata_requests': transport.metadata_requests,
+              'inference_requests': transport.inference_requests, 'pc_delegation': False
+          })
+          assert receipt['metadata_requests'] == 1 and receipt['inference_requests'] == 0
+          Path('trillion-mapping-receipt.json').write_text(json.dumps(receipt, indent=2), encoding='utf-8')
+          print(json.dumps(receipt))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-0813-model-mapping-${{ github.run_id }}
+          path: trillion-mapping-receipt.json
+          retention-days: 7
+
+  official-cloud-canary:
+    name: One explicitly authorized 0813 cloud request
+    needs: [offline-verification, official-model-metadata]
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_one_paid_call && github.run_attempt == 1 }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Require an existing owner credential without exposing it
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          python - <<'PY'
+          import os
+          if not os.environ.get('DEEPSEEK_API_KEY'):
+              raise SystemExit('BLOCKED: existing DEEPSEEK_API_KEY is required; no API request sent')
+          PY
+      - name: Build a fresh public synthetic challenge
+        run: |
+          python - <<'PY'
+          import json, os, secrets
+          from pathlib import Path
+          a, b = 101 + secrets.randbelow(899), 101 + secrets.randbelow(899)
+          nonce = secrets.token_hex(8)
+          Path('canary-prompt.txt').write_text(
+              f'Return only a JSON object with keys nonce and product. '
+              f'Copy nonce "{nonce}" exactly. Compute product as {a} multiplied by {b}.',
+              encoding='utf-8')
+          Path('canary-expected.json').write_text(json.dumps({'nonce': nonce, 'product': a*b}), encoding='utf-8')
+          Path('canary-cloud-context.json').write_text(json.dumps({
+              'repository': os.environ['GITHUB_REPOSITORY'], 'commit_sha': os.environ['GITHUB_SHA'],
+              'run_id': os.environ['GITHUB_RUN_ID'], 'run_attempt': os.environ['GITHUB_RUN_ATTEMPT'],
+              'runner_environment': os.environ.get('RUNNER_ENVIRONMENT'),
+              'execution_origin': 'GitHub-hosted ubuntu-24.04', 'pc_delegation': False,
+              'model_host': 'api.deepseek.com', 'max_inference_requests': 1
+          }, indent=2), encoding='utf-8')
+          PY
+      - name: Call only the officially mapped 0813 model once
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: >-
+          python trillion/trillion_cloud.py --execute --public --allow-charge
+          --prompt-file canary-prompt.txt --receipt canary-receipt.json
+          --max-input-bytes 1024 --max-output-tokens 128
+          --timeout-seconds 120 --max-cost-usd 0.01
+      - name: Grade the returned text without executing model output
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          receipt = json.loads(Path('canary-receipt.json').read_text(encoding='utf-8'))
+          expected = json.loads(Path('canary-expected.json').read_text(encoding='utf-8'))
+          try:
+              actual = json.loads(receipt['response_evidence']['content'])
+              passed = (receipt['inference_verified'] is True and isinstance(actual, dict)
+                        and set(actual) == set(expected) and type(actual.get('product')) is int
+                        and actual == expected)
+          except (KeyError, TypeError, ValueError):
+              passed = False
+          Path('canary-grade.json').write_text(json.dumps({
+              'passed': passed, 'scope': 'one public arithmetic/nonce challenge',
+              'weight_revision_attested': False, 'general_quality_claimed': False
+          }, indent=2), encoding='utf-8')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as out:
+              out.write('## Exact 0813 cloud canary\n\n')
+              out.write('Public challenge: ' + ('passed' if passed else 'failed') + '\n\n')
+              out.write('Provider-service evidence only; no independently verified weight revision.\n')
+          if not passed:
+              raise SystemExit('CANARY_GRADE_FAILED')
+          PY
+      - name: Preserve the public receipt even if inference or grading fails
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: exact-0813-cloud-canary-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            canary-prompt.txt
+            canary-expected.json
+            canary-cloud-context.json
+            canary-receipt.json
+            canary-grade.json
+          if-no-files-found: warn
+          retention-days: 7
