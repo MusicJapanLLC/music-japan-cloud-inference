@@ -9,7 +9,9 @@ on:
       - 'gateway_candidate_capture.py'
       - 'test_gateway_candidate_capture.py'
       - 'samples/lease-finalization/**'
+      - 'samples/sliding-window/**'
       - 'evidence/candidate-compare-20261018/captures.json'
+      - 'evidence/candidate-compare-20261018/sliding-window/captures.json'
       - '.github/workflows/candidate-compare.yml'
 
 permissions:
@@ -28,13 +30,15 @@ jobs:
         with:
           persist-credentials: false
       - name: Verify controller behavior without model calls
+        id: controller_tests
         run: python3 -B -m unittest -v test_verified_dev_agent test_compare_candidates test_gateway_candidate_capture
       - name: Prepare the existing isolated runtime
+        id: isolated_runtime
         run: |
           mkdir -p out
           docker pull python:3.12-alpine
           docker image inspect python:3.12-alpine --format '{{.Id}}' > out/docker-image-id.txt
-      - name: Check frozen public candidates on fresh workspaces
+      - name: Recheck the previous lease-finalization capture
         run: >-
           python3 -B compare_candidates.py
           --task samples/lease-finalization/task.json
@@ -42,6 +46,15 @@ jobs:
           --execute --concurrency 3 --budget-seconds 450
           --receipt out/comparison.json
           --selected out/selected-edits.json
+      - name: Check the captured sliding-window repair on fresh workspaces
+        if: ${{ !cancelled() && steps.controller_tests.outcome == 'success' && steps.isolated_runtime.outcome == 'success' }}
+        run: >-
+          python3 -B compare_candidates.py
+          --task samples/sliding-window/task.json
+          --captures evidence/candidate-compare-20261018/sliding-window/captures.json
+          --execute --concurrency 1 --budget-seconds 150
+          --receipt out/sliding-window/comparison.json
+          --selected out/sliding-window/selected-edits.json
       - name: Record exact cloud execution context
         if: always()
         env:
@@ -55,7 +68,22 @@ jobs:
           context = {'github_commit': os.environ['MJ_CHECK_COMMIT'],
                      'github_run_id': os.environ['MJ_CHECK_RUN'],
                      'candidate_network': 'none', 'new_model_calls_in_ci': 0,
-                     'runner_label': 'ubuntu-24.04'}
+                     'runner_label': 'ubuntu-24.04',
+                     'generation_mode': 'provided_response_captures_not_live_generation',
+                     'comparisons': {
+                         'lease-finalization': {
+                             'purpose': 'previous_capture_regression',
+                             'task': 'samples/lease-finalization/task.json',
+                             'captures': 'evidence/candidate-compare-20261018/captures.json',
+                             'receipt': 'out/comparison.json',
+                             'selected_edits': 'out/selected-edits.json'},
+                         'sliding-window': {
+                             'purpose': 'separate_captured_repair_validation',
+                             'task': 'samples/sliding-window/task.json',
+                             'captures': 'evidence/candidate-compare-20261018/sliding-window/captures.json',
+                             'receipt': 'out/sliding-window/comparison.json',
+                             'selected_edits': 'out/sliding-window/selected-edits.json'}},
+                     'test_scope': 'acceptance_and_independent_fresh_workspace_recheck'}
           (out / 'cloud-context.json').write_text(json.dumps(context, indent=2) + '\n')
           PY
       - uses: actions/upload-artifact@v4
