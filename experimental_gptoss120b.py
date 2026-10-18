@@ -13,6 +13,7 @@ import hashlib
 import http.client
 import json
 import os
+import re
 from pathlib import Path
 import secrets
 import shutil
@@ -33,6 +34,8 @@ SOURCE = f"https://huggingface.co/{REPO}/resolve/{REV}/{FILENAME}"
 MIN_DISK_FREE_GIB = SIZE_BYTES/(1024**3)+8
 MIN_RAM_GIB = 12
 PORT = 18895
+LOAD_LIMIT_SECONDS = 480
+MAX_DIAGNOSTIC_BYTES = 128 * 1024
 
 def local_resources(folder:Path)->dict:
     disk = shutil.disk_usage(folder)
@@ -93,6 +96,33 @@ def client(key:str,path:str,body=None,timeout:int=10):
     finally:
         c.close()
 
+def cgroup_memory_events(path:Path=Path("/sys/fs/cgroup/memory.events")) -> dict:
+    """Safe numeric counters only; no host files/secrets in results."""
+    try:
+        data={}
+        for line in path.read_text(encoding="utf8").splitlines():
+            key,space,value=line.partition(" ")
+            if space and key in ("oom","oom_kill","max","high"):
+                data[key]=max(0,int(value.strip()))
+        return data
+    except (OSError,ValueError):
+        return {}
+
+def diagnose_runtime(logfile:Path)->dict:
+    try:
+        with logfile.open("rb") as f:
+            f.seek(0,2)
+            f.seek(max(0,f.tell()-MAX_DIAGNOSTIC_BYTES))
+            text=f.read(MAX_DIAGNOSTIC_BYTES).decode("utf8","replace").lower()
+        patterns=(("oom",r"out of memory|oom killer|cannot allocate memory"),
+                  ("allocation",r"failed to allocate|allocat(e|ion) failed"),
+                  ("mmap",r"mmap|load.mode"),
+                  ("load_error",r"error loading model|failed to load model|load_model.+failed"),
+                  ("unsupported",r"unsupported|not implemented"))
+        return {key:bool(re.search(pattern,text)) for key,pattern in patterns}
+    except OSError:
+        return {"log_unavailable":True}
+
 def infer_once(binary:Path,model:Path,out:Path)->int:
     if not binary.is_file():raise FileNotFoundError("LLAMA_SERVER_BINARY_MISSING")
     key=secrets.token_urlsafe(40)
@@ -101,10 +131,12 @@ def infer_once(binary:Path,model:Path,out:Path)->int:
     output_log=out.parent/"runtime.txt"
     with output_log.open("wb") as log:
         start=time.monotonic()
+        memory_before=cgroup_memory_events()
         proc=subprocess.Popen([
             str(binary),"-m",str(model),"-a",ID,
             "--host","127.0.0.1","--port",str(PORT),
             "--no-webui","--no-mmproj","--cache-ram","0",
+            "--load-mode","mmap","--fit","off","--no-repack",
             "-c","512","-b","64","-ub","32","-t","4","-np","1","-ngl","0"
         ],env=env,stdin=subprocess.DEVNULL,stdout=log,stderr=subprocess.STDOUT)
         result={"schema":SCHEMA,"model":ID,"source_repo":REPO,"revision":REV,
@@ -114,7 +146,7 @@ def infer_once(binary:Path,model:Path,out:Path)->int:
                 "model_loaded":False,"response_observed":False}
         try:
             ready=False
-            for _ in range(120):
+            for _ in range(LOAD_LIMIT_SECONDS // 3):
                 if proc.poll() is not None:break
                 try:
                     status,_=client(key,"/health",timeout=3)
@@ -127,6 +159,7 @@ def infer_once(binary:Path,model:Path,out:Path)->int:
             result["start_seconds"]=round(time.monotonic()-start,2)
             if not ready:
                 result["status"]="LOAD_UNVERIFIED"
+                result["process_exit_code"]=proc.poll()
                 return 3
             st, m=client(key,"/v1/models",timeout=10)
             result["model_loaded"]=bool(st==200 and ID in
@@ -157,6 +190,11 @@ def infer_once(binary:Path,model:Path,out:Path)->int:
                 return 3
         finally:
             result["total_seconds"]=round(time.monotonic()-start,2)
+            result["process_exit_code"]=proc.poll()
+            result["runtime_log_classification"]=diagnose_runtime(output_log)
+            memory_after=cgroup_memory_events()
+            result["cgroup_memory_event_delta"]={key:max(0,v-memory_before.get(key,0))
+                for key,v in memory_after.items()}
             out.write_bytes(normalized(signed_record(result))+b"\n")
             proc.terminate()
             try:proc.wait(timeout=8)
