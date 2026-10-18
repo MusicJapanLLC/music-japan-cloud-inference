@@ -32,6 +32,20 @@ class Official120BChatTests(unittest.TestCase):
         x=chat.model_body("Compute 25*4.",["100"],"medium",192)
         self.assertIn("EARLIER PROPOSAL",x["messages"][1]["content"])
         self.assertIn("100",x["messages"][1]["content"])
+    def test_max_uses_sha_bound_20b_independent_proposal(self):
+        request=chat.model_body("Calculate 314 times 29.",[],"high",384,
+                                proposal_context="9106")
+        self.assertEqual(request["model"],"gpt-oss-120b-MXFP4")
+        self.assertIn("9106",request["messages"][1]["content"])
+        self.assertIn("INDEPENDENT PUBLIC OPEN-WEIGHT",request["messages"][1]["content"])
+        self.assertEqual(request["reasoning_effort"],"high")
+
+    def test_ultra_second_round_is_real_120b_reexamination(self):
+        content=chat.prompt_for_round("Calculate 314 times 29.",["9106"],proposal_context="other model: 9106")
+        self.assertIn("EARLIER PROPOSAL",content)
+        self.assertIn("9106",content)
+        self.assertIn("ORIGINAL QUESTION",content)
+
     def test_requires_true_model_response(self):
         payload={"choices":[{"message":{"content":"156"}}],"usage":{
             "completion_tokens":35,
