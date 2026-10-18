@@ -1,0 +1,26 @@
+name: OpenRouter free connector offline
+on:
+  push:
+    paths:
+      - 'openrouter_free_client.py'
+      - 'test_openrouter_free_client.py'
+      - '.github/workflows/openrouter-free-offline.yml'
+  pull_request:
+    paths:
+      - 'openrouter_free_client.py'
+      - 'test_openrouter_free_client.py'
+      - '.github/workflows/openrouter-free-offline.yml'
+permissions:
+  contents: read
+jobs:
+  contract-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python version
+        run: python3 --version
+      - name: Offline unit tests
+        run: python3 -m unittest -v test_openrouter_free_client.py
+      - name: Syntax compilation
+        run: python3 -m py_compile openrouter_free_client.py
