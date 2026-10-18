@@ -62,53 +62,90 @@ def safe_math_expression(expr:str)->Fraction:
 def format_number(x:Fraction)->str:
     return str(x.numerator) if x.denominator==1 else f"{x.numerator}/{x.denominator}"
 
-def derive_check(question:str)->dict:
-    """Return a signed-independent, rules-based reference or explicitly abstain."""
-    if not isinstance(question,str) or len(question)>5000:
-        return {"status":"ABSTAIN","reason":"INVALID_QUESTION"}
-    s=question.strip()
-    # General arithmetic instructions with simple operators and nested parentheses.
-    m=re.match(r"^(?:Compute|Calculate)\s+(.+?)(?:\.\s|[.]?$)",s,flags=re.I)
+# Accepted grammars consume the complete request. Unknown clauses abstain.
+_NUMERIC_END = (
+    r"(?:[.]?\s*|[.]\s+(?:"
+    r"(?:Give|Return|Answer)(?: only)?(?: with)?(?: the| a)? (?:number|integer)(?: only)?"
+    r"|Number only"
+    r")[.]?)"
+)
+
+
+def _match(pattern: str, question: str):
+    return re.fullmatch(pattern, question, flags=re.I)
+
+
+def _numeric_result(match, value: Fraction, domain: str, proof: str):
+    if re.search(r"\binteger\b", match[0], re.I) and value.denominator != 1:
+        return None
+    return {"status": "CHECKABLE", "domain": domain,
+            "expected": format_number(value), "proof": proof}
+
+
+def derive_check(question: str) -> dict:
+    """Derive a reference only when every input instruction is understood.
+
+    This deliberately recognizes a small request language, not arbitrary prose.
+    Unsupported modifiers, extra tasks, or unknown output constraints abstain.
+    """
+    if not isinstance(question, str) or len(question) > 5000:
+        return {"status": "ABSTAIN", "reason": "INVALID_QUESTION"}
+    s = question.strip()
+    m = _match(r"(?:Compute|Calculate)\s+([0-9\s()+*/a-z-]+?)" + _NUMERIC_END, s)
     if m:
         try:
-            x=safe_math_expression(m.group(1).strip().rstrip("."))
-            return {"status":"CHECKABLE","domain":"rational_arithmetic",
-                    "expected":format_number(x),"proof":"whitelisted_fraction_ast"}
-        except (SyntaxError,ValueError,ZeroDivisionError,OverflowError):
+            result = _numeric_result(m, safe_math_expression(m[1].strip()),
+                                     "rational_arithmetic", "whitelisted_fraction_ast")
+            if result:
+                return result
+        except (SyntaxError, ValueError, ZeroDivisionError, OverflowError):
             pass
-    # One-variable integer linear equations. The answer is computed algebraically.
-    m=re.search(r"\bSolve\s+(-?\d{1,10})x\s*([+-])\s*(\d{1,10})\s*=\s*(-?\d{1,10})\b",s,re.I)
+
+    equation_end = r"(?:[.]\s+Return x as a number only[.]?|" + _NUMERIC_END + r")"
+    m = _match(r"Solve\s+(-?\d{1,10})x\s*([+-])\s*(\d{1,10})\s*=\s*(-?\d{1,10})" + equation_end, s)
     if m:
-        a,sign,b,c=int(m[1]),m[2],int(m[3]),int(m[4])
+        a, sign, b, c = int(m[1]), m[2], int(m[3]), int(m[4])
         if a:
-            value=Fraction(c-(b if sign=="+" else -b),a)
-            return {"status":"CHECKABLE","domain":"linear_equation",
-                    "expected":format_number(value),"proof":"exact_rational_algebra"}
-    # Date arithmetic for weekdays.
-    m=re.search(r"\b(?:Today is|Starting from)\s+(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b.+?\bin\s+(\d{1,4})\s+days?\b",s,re.I)
+            result = _numeric_result(m, Fraction(c - (b if sign == "+" else -b), a),
+                                     "linear_equation", "exact_rational_algebra")
+            if result:
+                return result
+
+    m = _match(
+        r"(?:Today is|Starting from)\s+"
+        r"(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)[.]\s+"
+        r"What day of the week will it be in\s+(\d{1,4})\s+days?\?"
+        r"(?:\s+Reply (?:only the day|with the English weekday only)[.]?)?", s)
     if m:
-        start=next(i for i,v in enumerate(WEEKDAYS) if v.casefold()==m[1].casefold())
-        return {"status":"CHECKABLE","domain":"weekday_modulo",
-                "expected":WEEKDAYS[(start+int(m[2]))%7],"proof":"modulo_7"}
-    # ASCII reversal, no Unicode ambiguity or hidden punctuation.
-    m=re.search(r"\bReverse the ASCII string\s+([A-Za-z0-9]{1,80})\b",s,re.I)
+        start = next(i for i, v in enumerate(WEEKDAYS) if v.casefold() == m[1].casefold())
+        return {"status": "CHECKABLE", "domain": "weekday_modulo",
+                "expected": WEEKDAYS[(start + int(m[2])) % 7], "proof": "modulo_7"}
+
+    m = _match(
+        r"Reverse the ASCII string\s+([A-Za-z0-9]{1,80})"
+        r"(?: exactly(?:, preserving letter case)?)?[.]?"
+        r"(?:\s+Only return the reversed string[.]?)?", s)
     if m:
-        return {"status":"CHECKABLE","domain":"ascii_reverse",
-                "expected":m[1][::-1],"proof":"reverse_characters"}
-    # Finite integer series.
-    m=re.search(r"\bsum the squares of integers\s+(-?\d{1,5})\s+through\s+(-?\d{1,5})\b",s,re.I)
+        return {"status": "CHECKABLE", "domain": "ascii_reverse",
+                "expected": m[1][::-1], "proof": "reverse_characters"}
+
+    m = _match(r"Sum the squares of integers\s+(-?\d{1,5})\s+through\s+(-?\d{1,5})"
+               r"(?: inclusive)?" + _NUMERIC_END, s)
     if m:
-        lo,hi=int(m[1]),int(m[2])
-        if 0<=hi-lo<=1000:
-            return {"status":"CHECKABLE","domain":"sum_of_squares",
-                    "expected":str(sum(i*i for i in range(lo,hi+1))),
-                    "proof":"bounded_integer_enumeration"}
-    # Exact string constraints can be validated without model judgment.
-    m=re.search(r"\b(?:exact\s+uppercase\s+word|exact\s+word)\s+([A-Z]{2,80})\b",s,re.I)
+        lo, hi = int(m[1]), int(m[2])
+        if 0 <= hi - lo <= 1000:
+            return {"status": "CHECKABLE", "domain": "sum_of_squares",
+                    "expected": str(sum(i * i for i in range(lo, hi + 1))),
+                    "proof": "bounded_integer_enumeration"}
+
+    m = _match(
+        r"Return the exact (uppercase )?word\s+([A-Za-z]{2,80})[.]?"
+        r"(?:\s+Do not add explanation[.]?)?", s)
     if m:
-        return {"status":"CHECKABLE","domain":"exact_literal",
-                "expected":m[1],"proof":"literal_from_request"}
-    return {"status":"ABSTAIN","reason":"NO_INDEPENDENT_DETERMINISTIC_CHECK_AVAILABLE"}
+        return {"status": "CHECKABLE", "domain": "exact_literal",
+                "expected": m[2].upper() if m[1] else m[2],
+                "proof": "literal_from_request"}
+    return {"status": "ABSTAIN", "reason": "NO_INDEPENDENT_DETERMINISTIC_CHECK_AVAILABLE"}
 
 def verify_answer(question:str,answer:str)->dict:
     derived=derive_check(question)
@@ -147,3 +184,4 @@ def apply_verifier(question:str,model_answer:str)->dict:
     return {"final_answer":model_answer,
             "source":"model_unverified",
             "verification":check}
+
