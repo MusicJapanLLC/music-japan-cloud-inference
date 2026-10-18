@@ -21,7 +21,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: mj-reasoning-mesh-${{ github.ref }}
+  group: mj-reasoning-mesh-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
