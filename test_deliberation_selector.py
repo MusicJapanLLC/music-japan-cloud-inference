@@ -76,6 +76,18 @@ class ReasonerSelectorTest(unittest.TestCase):
         self.assertEqual(out["answer"],"56")
         self.assertEqual(out["source_stage"],"propose")
 
+    def test_japanese_polite_and_casual_both_valid(self):
+        prompt="Translate Good morning into Japanese. Only the translation."
+        r=sel.independently_select(prompt,"おはようございます","おはよう","おはようございます")
+        self.assertEqual(r["confidence"],"independently_verified")
+        self.assertEqual(r["source"],"curated_translation_reference")
+        self.assertFalse(r["tool_correction"])
+        self.assertEqual(r["answer"],"おはようございます")
+
+    def test_unseen_translation_variants_are_not_fabricated(self):
+        r=sel.independently_select("Translate leverage into Japanese.","レバレッジ","てこ","梃子")
+        self.assertEqual(r["confidence"],"requires_independent_review")
+
     def test_majority_is_not_verification(self):
         out=sel.independently_select("What is the capital of France?","Paris","Berlin","Paris")
         self.assertEqual(out["confidence"],"unverified_consensus")
