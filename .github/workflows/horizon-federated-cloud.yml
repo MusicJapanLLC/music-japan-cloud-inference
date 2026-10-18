@@ -1,0 +1,162 @@
+name: Music Japan Horizon — Genuine 120B x 122B Cloud Linux Federation
+on:
+  push:
+    branches:
+      - feature/mj-beyond-120b-235b-397b-cloud-20261018
+    paths:
+      - '.github/workflows/horizon-federated-cloud.yml'
+      - 'horizon_fanout.py'
+      - 'horizon_referee.py'
+      - 'test_horizon_federation.py'
+  workflow_dispatch:
+    inputs:
+      run_federation:
+        type: boolean
+        default: false
+        required: true
+        description: 'Run two real original public models in two independent free Linux VMs'
+      public_question:
+        type: string
+        required: true
+        default: 'Compute ((72 / 8) + 17) times 6. Reply only with the integer.'
+        description: 'PUBLIC test input only; this is a public GitHub Actions repository'
+permissions:
+  contents: read
+concurrency:
+  group: mj-horizon-federation-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Independent provenance and receipts regression suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest -q test_horizon_federation.py
+          python3 horizon_fanout.py --profile oss120 --binary unused --weights-dir "$RUNNER_TEMP" --out "$RUNNER_TEMP/none.json"
+          python3 horizon_fanout.py --profile qwen122 --binary unused --weights-dir "$RUNNER_TEMP" --out "$RUNNER_TEMP/none.json"
+  fleet-evidence:
+    name: Extra free Linux research machine — ${{ matrix.os }}
+    needs: validate
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_federation == true }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 6
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ['ubuntu-24.04', 'ubuntu-24.04-arm']
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Measure actual independent Linux VM capacity
+        run: |
+          set -euo pipefail
+          python3 cloud_probe.py --out "machine-${{ matrix.os }}.json"
+          python3 cloud_probe.py --verify "machine-${{ matrix.os }}.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: horizon-machine-${{ matrix.os }}
+          path: machine-${{ matrix.os }}.json
+          retention-days: 1
+          if-no-files-found: error
+  inference:
+    name: Actual ${{ matrix.profile }} on its own free Linux VM
+    needs: validate
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_federation == true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: ['oss120', 'qwen122']
+    env:
+      MJ_PUBLIC_RESEARCH_QUESTION: ${{ inputs.public_question }}
+      HF_HUB_DISABLE_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Confirm no-cost public hosted hardware
+        run: |
+          set -euo pipefail
+          python3 cloud_probe.py
+          python3 -m unittest -q test_horizon_federation.py
+      - name: Compile official llama.cpp runtime for this VM
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth 1 https://github.com/ggml-org/llama.cpp.git "$RUNNER_TEMP/llama.cpp"
+          cmake -S "$RUNNER_TEMP/llama.cpp" -B "$RUNNER_TEMP/llama.cpp/build" -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DGGML_CUDA=OFF -DLLAMA_CURL=OFF
+          cmake --build "$RUNNER_TEMP/llama.cpp/build" --config Release --target llama-server -j 4
+      - name: Independently download SHA-pinned actual open weights and generate answer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 horizon_fanout.py --execute \
+            --profile "${{ matrix.profile }}" \
+            --binary "$RUNNER_TEMP/llama.cpp/build/bin/llama-server" \
+            --weights-dir "$RUNNER_TEMP/weights" \
+            --out "$RUNNER_TEMP/horizon-${{ matrix.profile }}.json"
+      - name: Transfer only hashed actual model response (no weights/secrets)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: horizon-${{ matrix.profile }}-proof
+          path: ${{ runner.temp }}/horizon-${{ matrix.profile }}.json
+          retention-days: 1
+          if-no-files-found: ignore
+  reconcile:
+    name: Authenticate both model artifacts and compute independently grounded final answer
+    needs: [inference, fleet-evidence]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    env:
+      MJ_PUBLIC_RESEARCH_QUESTION: ${{ inputs.public_question }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/download-artifact@v4
+        with:
+          name: horizon-oss120-proof
+          path: ${{ runner.temp }}/gpt120
+      - uses: actions/download-artifact@v4
+        with:
+          name: horizon-qwen122-proof
+          path: ${{ runner.temp }}/qwen122
+      - name: Provenance-check both real cloud model outputs, no score labels
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest -q test_horizon_federation.py
+          python3 horizon_referee.py \
+            --oss120 "$RUNNER_TEMP/gpt120/horizon-oss120.json" \
+            --qwen122 "$RUNNER_TEMP/qwen122/horizon-qwen122.json" \
+            --out "$RUNNER_TEMP/horizon-final.json" \
+            --public-question "$MJ_PUBLIC_RESEARCH_QUESTION"
+      - name: Show selected answer in GitHub Summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import html,json,os
+          from pathlib import Path
+          proof=json.loads((Path(os.environ['RUNNER_TEMP'])/'horizon-final.json').read_text('utf8'))
+          answer=html.escape(proof['final_answer'])
+          decision=html.escape(proof['decision'])
+          models=', '.join(html.escape(m) for m in proof['original_public_models'])
+          with Path(os.environ['GITHUB_STEP_SUMMARY']).open('a',encoding='utf8') as f:
+              f.write('## Music Japan Horizon — two authentic cloud LLMs\n\n')
+              f.write('**Models:** '+models+'\n\n')
+              f.write('**Verification:** '+decision+'\n\n')
+              f.write('<pre>'+answer+'</pre>\n')
+              f.write('\n*Each model ran on its own ephemeral CPU; RAM is not shared and no GPU allocation is claimed.*\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: horizon-actual-combined-answer
+          path: ${{ runner.temp }}/horizon-final.json
+          retention-days: 1
+          if-no-files-found: error
