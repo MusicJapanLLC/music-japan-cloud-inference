@@ -8,6 +8,8 @@ on:
       - 'horizon_fanout.py'
       - 'horizon_referee.py'
       - 'test_horizon_federation.py'
+      - 'mj_horizon.py'
+      - 'test_mj_horizon.py'
   workflow_dispatch:
     inputs:
       run_federation:
@@ -36,7 +38,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m unittest -q test_horizon_federation.py
+          python3 -m unittest -q test_horizon_federation.py test_mj_horizon.py
           python3 horizon_fanout.py --profile oss120 --binary unused --weights-dir "$RUNNER_TEMP" --out "$RUNNER_TEMP/none.json"
           python3 horizon_fanout.py --profile qwen122 --binary unused --weights-dir "$RUNNER_TEMP" --out "$RUNNER_TEMP/none.json"
   fleet-evidence:
@@ -83,7 +85,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 cloud_probe.py
-          python3 -m unittest -q test_horizon_federation.py
+          python3 -m unittest -q test_horizon_federation.py test_mj_horizon.py
       - name: Compile official llama.cpp runtime for this VM
         shell: bash
         run: |
@@ -130,7 +132,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m unittest -q test_horizon_federation.py
+          python3 -m unittest -q test_horizon_federation.py test_mj_horizon.py
           python3 horizon_referee.py \
             --oss120 "$RUNNER_TEMP/gpt120/horizon-oss120.json" \
             --qwen122 "$RUNNER_TEMP/qwen122/horizon-qwen122.json" \
