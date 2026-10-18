@@ -48,7 +48,7 @@ jobs:
       - name: No-model-credit general chat tests
         run: |
           set -euo pipefail
-          python3 -m unittest -q test_cloud_owner_chat.py test_objective_verifier.py test_cloud_probe.py
+          python3 -m unittest -q test_cloud_owner_chat.py test_render_cloud_chat.py test_objective_verifier.py test_cloud_probe.py
           python3 cloud_owner_chat.py --binary nonexistent --weights-dir "$RUNNER_TEMP/weights" --out "$RUNNER_TEMP/answer.json"
   genuine-model-chat:
     name: Official open-weight model answers actual public prompt
@@ -83,6 +83,11 @@ jobs:
             --effort "${{ inputs.reasoning_effort }}" \
             --tokens "${{ inputs.tokens_per_round }}" \
             --max-seconds 1200
+      - name: Verify authentic answer and publish human-readable Summary
+        if: ${{ success() }}
+        run: |
+          set -euo pipefail
+          python3 render_cloud_chat.py --receipt "$RUNNER_TEMP/mj-cloud-answer.json"
       - name: Save verified answer artifact — public test prompt only, no model weights
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
