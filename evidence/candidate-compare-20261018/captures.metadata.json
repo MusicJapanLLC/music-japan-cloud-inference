@@ -1,40 +1,53 @@
 {
   "schema": "mj.candidate-capture-provenance/1.0",
-  "prompt_sha256": "38714934b10ae14a78da8154988b454c0450542e1f86eab58f736c47dfb2e505",
   "task_id": "lease-finalization-idempotency",
+  "prompt_sha256": "38714934b10ae14a78da8154988b454c0450542e1f86eab58f736c47dfb2e505",
   "task_manifest_sha256": "d3441d5cfe8c5ea882020c7eb788274e59e63a64ac67f64b2e9b3de60d93cd30",
-  "observed_at_utc": "2026-10-18T09:03:24+00:00",
+  "observed_at_utc": "2026-10-18T11:23:37.972652+00:00",
+  "started_at_utc": "2026-10-18T11:22:12.679534+00:00",
   "max_tokens_per_candidate": 4096,
   "timeout_seconds_per_candidate": 240,
-  "wall_seconds": 240.156,
+  "wall_seconds": 85.29,
   "data_class": "public_synthetic",
-  "fresh_model_calls": 3,
-  "model_identity_basis": "existing_gateway_report_only_not_weight_attestation",
+  "tests_supplied_to_model": false,
+  "fresh_model_calls_in_active_capture": 1,
+  "direct_code_generation_calls_this_continuation": 2,
+  "new_model_calls_in_ci": 0,
+  "model_identity_basis": "upstream_reported_not_weight_attested",
   "generated_source_executed_on_controller": false,
-  "transport": "existing_pinned_owner_gateway",
-  "engine_sha256": "8bc82f9d94908d7e17de20cbf7348ebb59efaba676eab8afda6234eb63fa05f5",
-  "capture_payload_sha256": "268a43aa8ac4b7a5e75b2ebeeefd0d92bc9f872ceacd1ddb0ba0623dc939bcd7",
+  "transport": "public_https_direct",
+  "use_environment_proxy": true,
+  "remote_pc_used": false,
+  "requested_response_format": "json_object",
+  "client_source_sha256": {
+    "mj_frontier_cli.py": "2a08797ffa96c0048e65bba629e66d72ca4b94cf175519835278baad5b4d2fcf",
+    "upper_client.py": "e3f2b9f148b8219ba54d1cc069c6b328d414b7226f38be7d63667e3a44bb917e"
+  },
+  "capture_payload_sha256": "ec8175780fec8928519f49b6b31643d93cdc92410c0e557206e80472f7a5b81e",
+  "prior_attempts": [
+    {
+      "status": "REJECTED_NON_JSON_RESPONSE",
+      "observed_at_utc": "2026-10-18T11:17:32.469978+00:00",
+      "generation_seconds": 125.483,
+      "output_sha256": "992733df90810ae2dbc4eda708bf3281143a7ec8538bcb8ccaf91894c7212eb8",
+      "model_calls": 1,
+      "candidate_executed": false,
+      "automatic_retry": false
+    }
+  ],
+  "historical_capture_preserved": {
+    "url": "https://github.com/MusicJapanLLC/music-japan-cloud-inference/blob/b64213cd3ee01c89eeeb8dc19de85d78d75d2fc3/evidence/candidate-compare-20261018/capture-original.json",
+    "sha256": "0e9fbf68e03cae639d47ca01d9117794aa09685bc148bae83560261db75c59f0"
+  },
+  "historical_cloud_run": "https://github.com/MusicJapanLLC/music-japan-cloud-inference/actions/runs/39115525493",
   "candidates": [
     {
-      "profile": "qwen27",
-      "expected_model": "qwen3.8-27b-public",
-      "family": "qwen27",
-      "capture_status": "complete",
-      "generation_seconds": 164.516
-    },
-    {
-      "profile": "flashnext",
-      "expected_model": "qwen3.8-flash-next-public",
+      "profile": "flashnext_direct_20261018",
+      "expected_model": "mj-flash-next",
       "family": "flashnext",
-      "capture_status": "error",
-      "generation_seconds": 240.031
-    },
-    {
-      "profile": "deepseek",
-      "expected_model": "mj-deepseek-v4-flash",
-      "family": "deepseek",
-      "capture_status": "error",
-      "generation_seconds": 0.031
+      "capture_status": "complete",
+      "generation_seconds": 85.29,
+      "output_sha256": "c6af2a702a49e5542fe5214c2e6f8b1ae66fe26db06803803f4ef1e426c7506b"
     }
   ]
 }
