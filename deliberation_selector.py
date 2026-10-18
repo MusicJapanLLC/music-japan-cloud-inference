@@ -172,11 +172,24 @@ def test_score_after_selection(record:dict)->dict:
         raise ValueError("OUTPUT_NOT_VERIFIED")
     from cloud_infer_frontier import grade
     if len(record["items"])>len(CHALLENGES):raise ValueError("EVAL_OUT_OF_RANGE")
-    scores=[{"id":CHALLENGES[i]["id"],"passed":bool(grade(item["answer"],CHALLENGES[i])),
-             "source":item["source"]} for i,item in enumerate(record["items"])]
+    scores=[]
+    for i,item in enumerate(record["items"]):
+        case=CHALLENGES[i]
+        strict=bool(grade(item["answer"],case))
+        translation=verify_translation(case["prompt"],item["answer"])
+        # If a curated equivalent phrase is independently legitimate, do not
+        # mislabel the translation wrong merely for using polite register.
+        reference_aware = strict or translation["status"]=="VERIFIED"
+        scores.append({"id":case["id"],"passed":strict,
+                       "reference_aware_passed":reference_aware,
+                       "source":item["source"],
+                       "equivalence_rule":translation["domain"] if not strict and reference_aware else None})
     return {
-        "total":len(scores),"passed":sum(x["passed"] for x in scores),"rows":scores,
-        "note":"Tool-derived answers scored separately from raw model-only results; small public synthetic suite",
+        "total":len(scores),
+        "passed":sum(x["passed"] for x in scores),
+        "reference_aware_passed":sum(x["reference_aware_passed"] for x in scores),
+        "rows":scores,
+        "note":"Strict format match and independently curated semantic equivalents are reported separately; this is not improved raw model reasoning.",
     }
 
 def main(argv=None):
