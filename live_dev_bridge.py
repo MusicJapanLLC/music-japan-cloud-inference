@@ -28,6 +28,14 @@ TASKS = {'sliding-window-retry-budget': 'samples/sliding-window/task.json'}
 REQUEST_SCHEMA = 'mj.public-dev-check-request/1.0'
 RESULT_SCHEMA = 'mj.public-dev-check-result/1.0'
 MAX_WIRE_BYTES = 256_000
+UPPER_CLIENT_SHA256 = 'f86c91b00b9efa4e9e20daf88a1a928b1f200eafeafca65432cd96b937c79baa'
+UPPER_PROFILES = {
+    'mj-flash-next': {
+        'source': 'Qwen/Qwen3.8-Flash-Next',
+        'upstream': '/root/.cache/huggingface/hub/models--AtomicChat--Qwen3.8-Flash-Next-GGUF/snapshots/1c1f33abc8e835db3215390e8e14c6cc726f5843/Qwen3.8-Flash-Next-AD-4.27bpw-Q4_K_M-M64/Qwen3.8-Flash-Next-AD-4.27bpw-Q4_K_M-M64-00001-of-00033.gguf',
+        'origin': 'https://apathy-exe-qwen3-8-flash-next.hf.space',
+        'efforts': ('low', 'medium', 'xhigh')}
+}
 
 
 def unique_object(pairs):
@@ -192,6 +200,129 @@ class FrontierModel:
         return text
 
 
+class OwnerUpperModel:
+    """Explicit pinned public client; candidate execution remains in GitHubRunner.
+
+    At most an initial proposal and one repair are requested. The installed
+    consumer holds the existing owner gateway credential; this controller never
+    reads it, accepts an endpoint URL, or forwards credentials into CI.
+    """
+    def __init__(self, client: Path, evidence: Path, *, model='mj-flash-next',
+                 effort='xhigh', max_tokens=4096):
+        expected = Path(os.environ.get('LOCALAPPDATA', '')) / 'MusicJapan/FrontierRuntime/upper_client.py'
+        if (not isinstance(client, Path) or not client.is_file() or client.is_symlink()
+                or client.resolve() != expected.resolve()):
+            raise ValueError('EXISTING_PINNED_UPPER_CLIENT_REQUIRED')
+        self.client, self.client_sha256 = client, UPPER_CLIENT_SHA256
+        self._check_client()
+        if model not in UPPER_PROFILES or effort not in UPPER_PROFILES[model]['efforts']:
+            raise ValueError('UPPER_MODEL_OR_EFFORT_NOT_APPROVED')
+        if type(max_tokens) is not int or not 128 <= max_tokens <= 4096:
+            raise ValueError('UPPER_TOKEN_BUDGET_INVALID')
+        if evidence.is_symlink() or evidence.exists() and any(evidence.iterdir()):
+            raise ValueError('FRESH_UPPER_EVIDENCE_DIRECTORY_REQUIRED')
+        self.model, self.effort, self.max_tokens, self.evidence = model, effort, max_tokens, evidence
+        self.calls = []
+        self.attempts_started = 0
+
+    def _check_client(self):
+        if hashlib.sha256(self.client.read_bytes()).hexdigest() != self.client_sha256:
+            raise ValueError('UPPER_CLIENT_SOURCE_PIN_MISMATCH')
+
+    def _validate(self, data, prompt):
+        fields = {'schema', 'started_at', 'completed_at', 'elapsed_seconds', 'requested_model',
+            'actual_model', 'source_model', 'upstream_origin', 'identity_basis', 'weight_bytes_verified',
+            'independent_quality_verification', 'cost_mode', 'company_credentials_sent_upstream',
+            'paid_fallback', 'requested_reasoning_effort', 'reasoning_effort_attested',
+            'requested_max_tokens', 'response_format_requested', 'finish_reason', 'usage', 'usage_basis',
+            'prompt_sha256', 'public_input_confirmed', 'final_content'}
+        profile = UPPER_PROFILES[self.model]
+        fixed = {'schema': 'mj.upper-client.receipt/1.0', 'requested_model': self.model,
+            'actual_model': profile['upstream'], 'source_model': profile['source'],
+            'upstream_origin': profile['origin'], 'identity_basis': 'upstream_reported_not_byte_verified',
+            'cost_mode': 'public_demo', 'requested_reasoning_effort': self.effort,
+            'requested_max_tokens': self.max_tokens, 'response_format_requested': 'json_object',
+            'finish_reason': 'stop', 'prompt_sha256': hashlib.sha256(prompt.encode('utf-8')).hexdigest()}
+        if not isinstance(data, dict) or set(data) != fields or any(data.get(k) != value for k, value in fixed.items()):
+            raise ValueError('UPPER_RECEIPT_PROVENANCE_MISMATCH')
+        for key in ('weight_bytes_verified', 'independent_quality_verification',
+                    'company_credentials_sent_upstream', 'paid_fallback', 'reasoning_effort_attested'):
+            if data[key] is not False:
+                raise ValueError('UPPER_FREE_OR_IDENTITY_FLAGS_INVALID')
+        if data['public_input_confirmed'] is not True:
+            raise ValueError('UPPER_PUBLIC_GATE_REQUIRED')
+        for key in ('started_at', 'completed_at'):
+            if not isinstance(data[key], str) or len(data[key]) > 64:
+                raise ValueError('UPPER_RECEIPT_TIME_INVALID')
+            if dt.datetime.fromisoformat(data[key]).tzinfo is None:
+                raise ValueError('UPPER_RECEIPT_TIME_INVALID')
+        seconds = data['elapsed_seconds']
+        if type(seconds) not in (int, float) or not math.isfinite(seconds) or not 0 <= seconds <= 700:
+            raise ValueError('UPPER_RECEIPT_TIME_INVALID')
+        usage = data['usage']
+        if usage is None:
+            if data['usage_basis'] != 'not_returned':
+                raise ValueError('UPPER_USAGE_INVALID')
+        else:
+            names = ('prompt_tokens', 'completion_tokens', 'total_tokens')
+            if (not isinstance(usage, dict) or set(usage) != set(names)
+                    or any(type(usage.get(k)) is not int or usage[k] < 0 for k in names)
+                    or usage['total_tokens'] != usage['prompt_tokens'] + usage['completion_tokens']
+                    or usage['completion_tokens'] > self.max_tokens or data['usage_basis'] != 'upstream_reported'):
+                raise ValueError('UPPER_USAGE_INVALID')
+        text = data['final_content']
+        if not isinstance(text, str) or not text.strip() or len(text.encode('utf-8')) > v.MAX_RESPONSE_BYTES:
+            raise ValueError('UPPER_FINAL_CONTENT_INVALID')
+        parsed = json.loads(text, object_pairs_hook=unique_object)
+        if not isinstance(parsed, dict):
+            raise ValueError('UPPER_STRICT_JSON_REQUIRED')
+        # Validate the bounded replacements without changing the model's answer.
+        v.parse_edits(text, ('retry_budget.py',))
+        return text
+
+    def generate(self, model_name: str, prompt: str) -> str:
+        if model_name != self.model or not isinstance(prompt, str) or not prompt.strip():
+            raise ValueError('UNAPPROVED_UPPER_PROFILE_OR_PROMPT')
+        messages = [{'role': 'user', 'content': prompt}]
+        if len(json.dumps(messages, ensure_ascii=False).encode('utf-8')) > 32768:
+            raise ValueError('UPPER_PROMPT_BYTE_LIMIT')
+        if self.attempts_started >= 2:
+            raise ValueError('UPPER_INITIAL_PLUS_ONE_REPAIR_BUDGET_EXHAUSTED')
+        self._check_client()
+        self.attempts_started += 1
+        attempt = self.attempts_started
+        try:
+            with tempfile.TemporaryDirectory(prefix='mj-public-upper-client-') as folder:
+                prompt_path, receipt_path = Path(folder) / 'public-prompt.txt', Path(folder) / 'client-receipt.json'
+                prompt_path.write_text(prompt, encoding='utf-8')
+                done = subprocess.run([sys.executable, str(self.client), '--model', self.model,
+                    '--public', '--prompt-file', str(prompt_path), '--response-format', 'json_object',
+                    '--effort', self.effort, '--max-tokens', str(self.max_tokens), '--out', str(receipt_path)],
+                    shell=False, capture_output=True, encoding='utf-8', errors='replace', timeout=680)
+                if done.returncode != 0 or not receipt_path.is_file() or receipt_path.is_symlink():
+                    raise ValueError('EXISTING_UPPER_CLIENT_FAILED')
+                with receipt_path.open('rb') as handle:
+                    raw = handle.read(MAX_WIRE_BYTES + 1)
+                if len(raw) > MAX_WIRE_BYTES:
+                    raise ValueError('UPPER_RECEIPT_BYTE_LIMIT')
+                data = json.loads(raw.decode('utf-8'), object_pairs_hook=unique_object)
+                text = self._validate(data, prompt)
+            capture = v.signed({'schema': 'mj.upper-code-generation/1.0', 'attempt': attempt,
+                'client_sha256': self.client_sha256, 'client_receipt': data,
+                'independent_quality_verification': False, 'model_generated_code_executed_on_controller': False})
+            self.evidence.mkdir(parents=True, exist_ok=True)
+            with (self.evidence / ('generation-' + str(attempt) + '.json')).open('xb') as handle:
+                handle.write(v.canonical(capture) + b'\n')
+            self.calls.append({'attempt': attempt, 'status': 'complete', 'model': self.model,
+                'source_model': data['source_model'], 'capture_sha256': capture['sha256'],
+                'usage': data['usage'], 'requested_reasoning_effort': self.effort, 'replayed': False})
+            return text
+        except Exception:
+            self.calls.append({'attempt': attempt, 'status': 'failed', 'model': self.model,
+                               'error': 'UPPER_CLIENT_OR_RECEIPT_INVALID', 'replayed': False})
+            raise ValueError('UPPER_CLIENT_OR_RECEIPT_INVALID') from None
+
+
 class GitHubRunner:
     """Bounded cloud test transport using normal git auth, never extracted tokens."""
     evidence_name = 'github-public-ephemeral-docker-network-none'
@@ -255,12 +386,14 @@ class GitHubRunner:
         return v.Check(False, None, round(time.monotonic() - started, 3), 'CLOUD_RECEIPT_TIMEOUT', None)
 
 
-def main() -> int:
+def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--worker', type=Path, help='CI only: validate and execute a public request')
     parser.add_argument('--result', type=Path)
     parser.add_argument('--task-id', choices=tuple(TASKS), default='sliding-window-retry-budget')
     parser.add_argument('--client', type=Path)
+    parser.add_argument('--model', choices=(MODEL, *UPPER_PROFILES), default=MODEL)
+    parser.add_argument('--effort', help='Explicit upper-model effort; default xhigh for Flash Next, low for old route')
     parser.add_argument('--public', action='store_true')
     parser.add_argument('--execute', action='store_true')
     parser.add_argument('--branch', default='runs/vda/live-20261018')
@@ -268,7 +401,7 @@ def main() -> int:
     parser.add_argument('--captured-response', type=Path)
     parser.add_argument('--captured-prompt', type=Path)
     parser.add_argument('--output', type=Path, default=Path('evidence/live-dev-20261018'))
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     root = Path(__file__).resolve().parent
     if args.worker:
         if not args.result or args.worker.stat().st_size > MAX_WIRE_BYTES:
@@ -280,23 +413,31 @@ def main() -> int:
         print(json.dumps({'request_id': record['request_id'], 'check': record['check']}))
         return 0  # A failing assertion is a valid measured result, not a workflow infrastructure failure.
     if not args.execute:
-        print(json.dumps({'mode': 'dry_run', 'task_id': args.task_id, 'model': MODEL,
+        print(json.dumps({'mode': 'dry_run', 'task_id': args.task_id, 'model': args.model,
                           'cloud': REPOSITORY, 'generations': 0, 'checks_dispatched': 0}))
         return 0
     if not args.public or not args.client or not 1 <= args.attempts <= 3:
         raise ValueError('EXPLICIT_PUBLIC_EXECUTION_CLIENT_AND_BUDGET_REQUIRED')
+    if args.model in UPPER_PROFILES and (args.attempts > 2 or args.captured_response or args.captured_prompt):
+        raise ValueError('UPPER_MAX_ONE_REPAIR_AND_NO_REPLAY')
+    if args.model == MODEL and args.effort not in (None, 'low'):
+        raise ValueError('EXISTING_FRONTIER_EFFORT_IS_LOW')
     task = v.load_task(root / TASKS[args.task_id])
     runner = GitHubRunner(root, task, args.branch, public=True)
-    model = FrontierModel(args.client, args.output, args.captured_response, args.captured_prompt)
-    record, edits = v.execute(task, model, runner, [MODEL], args.attempts)
+    if args.model in UPPER_PROFILES:
+        model = OwnerUpperModel(args.client, args.output, model=args.model, effort=args.effort or 'xhigh')
+    else:
+        model = FrontierModel(args.client, args.output, args.captured_response, args.captured_prompt)
+    record, edits = v.execute(task, model, runner, [args.model], args.attempts)
     record = v.signed({**record, 'live_model_calls': model.calls, 'cloud_checks': runner.receipts,
-                       'upstream_billing_provenance': 'existing_public_only_frontier_client_no_paid_fallback',
+                       'upstream_billing_provenance': ('existing_public_only_upper_client_no_paid_fallback'
+                           if args.model in UPPER_PROFILES else 'existing_public_only_frontier_client_no_paid_fallback'),
                        'foundation_weights_created': False})
     args.output.mkdir(parents=True, exist_ok=True)
     (args.output / 'receipt.json').write_bytes(v.canonical(record) + b'\n')
     if edits is not None:
         (args.output / 'selected-edits.json').write_bytes(v.canonical(edits) + b'\n')
-    print(json.dumps({'status': record['status'], 'model': MODEL, 'cloud_checks': len(runner.receipts),
+    print(json.dumps({'status': record['status'], 'model': args.model, 'cloud_checks': len(runner.receipts),
                       'attempts': len(model.calls), 'receipt_sha256': record['sha256']}))
     return 0 if record['status'] == 'PASS_VERIFIED' else 2
 
