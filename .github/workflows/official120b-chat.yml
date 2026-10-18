@@ -1,0 +1,87 @@
+name: Music Japan Official OpenAI 120B — actual cloud high-reasoning chat
+on:
+  push:
+    branches: [feature/mj-frontier-research-factory-20261018]
+    paths:
+      - '.github/workflows/official120b-chat.yml'
+      - 'official120b_chat.py'
+      - 'test_official120b_chat.py'
+  workflow_dispatch:
+    inputs:
+      public_question:
+        type: string
+        required: true
+        description: 'PUBLIC research prompt only (no company or personal data), up to 3200 chars'
+        default: 'Compute ((72 / 8) + 17) times 6. Answer only with the integer.'
+      run_original_120b:
+        type: boolean
+        required: true
+        default: false
+      reasoning_effort:
+        type: choice
+        options: ['low', 'medium', 'high']
+        default: medium
+      thinking_rounds:
+        type: choice
+        options: ['1', '2']
+        default: '1'
+      output_tokens:
+        type: choice
+        options: ['128', '256', '512', '1024']
+        default: '256'
+permissions:
+  contents: read
+concurrency:
+  group: mj-real-120b-chat-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Exact official weights, true inference and no-credit unit tests
+        run: |
+          set -euo pipefail
+          python3 -m unittest -q test_official120b_chat.py test_experimental_gptoss120b.py test_objective_verifier.py
+          python3 official120b_chat.py --binary unavailable --weights-dir "$RUNNER_TEMP/weights" --out "$RUNNER_TEMP/out.json"
+  infer:
+    needs: test
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_original_120b == true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      MJ_PUBLIC_RESEARCH_QUESTION: ${{ inputs.public_question }}
+      HF_HUB_DISABLE_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify actual zero-paid Ubuntu runtime
+        run: python3 cloud_probe.py
+      - name: Build CPU inference binary from source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth 1 https://github.com/ggml-org/llama.cpp.git "$RUNNER_TEMP/llama.cpp"
+          cmake -S "$RUNNER_TEMP/llama.cpp" -B "$RUNNER_TEMP/llama.cpp/build" -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DGGML_CUDA=OFF -DLLAMA_CURL=OFF
+          cmake --build "$RUNNER_TEMP/llama.cpp/build" --config Release --target llama-server -j 4
+      - name: Load entire authentic 63GB OpenAI 120B via verified mmap and answer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 official120b_chat.py --execute \
+            --binary "$RUNNER_TEMP/llama.cpp/build/bin/llama-server" \
+            --weights-dir "$RUNNER_TEMP/weights" \
+            --out "$RUNNER_TEMP/real-120b-answer.json" \
+            --effort "${{ inputs.reasoning_effort }}" \
+            --rounds "${{ inputs.thinking_rounds }}" \
+            --tokens "${{ inputs.output_tokens }}"
+      - name: Upload genuine 120B answer, SHA proof and latency, not model weights
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: music-japan-official120b-real-chat
+          path: ${{ runner.temp }}/real-120b-answer.json
+          retention-days: 2
+          if-no-files-found: ignore
