@@ -24,8 +24,8 @@ Missing test counts, incomplete/model-substituted responses, immutable request/r
 - [x] Exclude upstream reasoning traces from public evidence; explicit outer-fence normalization
 
 ## Task 3: live acceptance
-- [ ] Run original failing baseline, actual captured model output and fresh candidate recheck in real Docker
-- [ ] Record honest generation provenance, Windows/Linux tests and cloud run IDs
+- [x] Run original failing baseline, actual captured model output and fresh candidate recheck in real Docker
+- [x] Record honest generation provenance, Windows/Linux tests and cloud run IDs
 - [ ] Review diff, verify final CI, integrate implementation and evidence
 
 ## Ledger
@@ -33,3 +33,5 @@ The preceding PR #6 is already merged at cfa8fb060ed1da18b7e7191cc93a53df2f7ae5d
 Notebook baseline: 116 tests; WinError 1314 in symlink test
 Current offline suite: 139 tests, two platform-specific skips on non-admin Windows; no claimed live-model success from these tests
 Captured real public Qwen3.8-27B response: 1273 completion tokens, stop termination, one 1215-character source replacement; strict JSON failed solely due to an outer Markdown fence
+
+Final review: immutable request/result links independently read back; real fresh-client run PASS_VERIFIED with no answer replay; exact code reviewed at 7fe567041b68fdc55a86da62c0c87e755c8329b4; merge awaits final CI

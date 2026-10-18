@@ -11,3 +11,9 @@ Public, isolated GitHub-hosted Linux compute lab for reproducible open-weight LL
 
 Source of truth for private company R&D remains [Music Japan AI Mesh](https://github.com/MusicJapanLLC/music-japan-ai-mesh) and its authorized internal databases. This public lab does not access those sources.
 
+
+## Live executable development agent
+
+[??????????????????????](docs/LIVE_DEVELOPMENT_AGENT_2026-10-18.md)
+
+The registered public-fixture loop has been verified with actual model generation and fresh cloud rechecks. This is not a new foundation-model checkpoint or a frontier-equivalence result.
