@@ -1,0 +1,35 @@
+name: Validate live development bridge
+on:
+  push:
+    paths:
+      - 'verified_dev_agent.py'
+      - 'live_dev_bridge.py'
+      - 'test_*dev*.py'
+      - '.github/workflows/live-dev*.yml'
+  pull_request:
+    paths:
+      - 'verified_dev_agent.py'
+      - 'live_dev_bridge.py'
+      - 'test_*dev*.py'
+      - '.github/workflows/live-dev*.yml'
+permissions:
+  contents: read
+jobs:
+  regression:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Full offline suite and no-op entrypoint
+        run: |
+          python -m unittest discover -p 'test_*.py' -v
+          python live_dev_bridge.py

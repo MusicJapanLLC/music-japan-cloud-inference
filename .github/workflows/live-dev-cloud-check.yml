@@ -1,0 +1,86 @@
+name: Isolated public development check
+on:
+  push:
+    branches: ['runs/vda/**']
+    paths: ['dev_requests/*.json']
+permissions:
+  contents: read
+concurrency:
+  group: live-dev-check-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Select exactly one newly committed request
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re, subprocess
+          result = subprocess.run(['git', 'diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'], check=True, capture_output=True, text=True)
+          paths = [p for p in result.stdout.splitlines() if re.fullmatch(r'dev_requests/[0-9a-f]{32}\.json', p)]
+          assert len(paths) == 1, 'EXACTLY_ONE_PUBLIC_REQUEST_REQUIRED'
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write('MJ_REQUEST_PATH=' + paths[0] + '\n')
+          PY
+      - name: Prepare isolated test runtime
+        shell: bash
+        run: |
+          docker pull python:3.12-alpine
+          docker image inspect python:3.12-alpine --format '{{.Id}}'
+      - name: Check candidate without network or host credentials
+        shell: bash
+        run: python3 live_dev_bridge.py --worker "$MJ_REQUEST_PATH" --result out/result.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: public-check-result
+          path: out/result.json
+          if-no-files-found: error
+          retention-days: 7
+  publish-feedback:
+    needs: check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: public-check-result
+          path: feedback
+      - name: Validate metadata and commit feedback, never execute candidate source
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, re, subprocess
+          raw = pathlib.Path('feedback/result.json').read_bytes()
+          assert len(raw) <= 256000
+          r = json.loads(raw)
+          assert r['schema'] == 'mj.public-dev-check-result/1.0'
+          assert re.fullmatch('[0-9a-f]{32}', r['request_id'])
+          assert r['github_commit'] == os.environ['GITHUB_SHA']
+          body = {k:v for k,v in r.items() if k != 'sha256'}
+          canonical = json.dumps(body, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()
+          assert hashlib.sha256(canonical).hexdigest() == r['sha256']
+          req = json.loads(pathlib.Path('dev_requests', r['request_id'] + '.json').read_bytes())
+          assert req['sha256'] == r['request_sha256']
+          path = pathlib.Path('dev_results', r['request_id'] + '.json')
+          path.parent.mkdir(exist_ok=True)
+          assert not path.exists(), 'IMMUTABLE_RESULT_ALREADY_EXISTS'
+          path.write_bytes(raw)
+          subprocess.run(['git', 'config', 'user.name', 'Music Japan Test Verifier'], check=True)
+          subprocess.run(['git', 'config', 'user.email', 'test-verifier@music-japan.invalid'], check=True)
+          subprocess.run(['git', 'add', '--', str(path)], check=True)
+          subprocess.run(['git', 'commit', '-m', 'test: publish isolated check ' + r['request_id']], check=True)
+          subprocess.run(['git', 'push', 'origin', 'HEAD:refs/heads/' + os.environ['GITHUB_REF_NAME']], check=True)
+          PY

@@ -90,7 +90,7 @@ class VerifiedAgentTests(unittest.TestCase):
         receipt, edits = vda.execute(self.task, client, runner, ["local-oss-a", "local-oss-b"], attempts=2)
         self.assertEqual(receipt["status"], "PASS_VERIFIED")
         self.assertEqual(receipt["selected_profile"], "local-oss-b")
-        self.assertEqual(runner.calls, 3)  # baseline + 2 candidates
+        self.assertEqual(runner.calls, 4)  # baseline + 2 candidates + independent recheck
         self.assertTrue(vda.verified(receipt))
         self.assertEqual(receipt["selected_edits_sha256"], vda.sha(edits))
         self.assertIn("UNTRUSTED TEST FAILURE TEXT", client.calls[1][1])
@@ -151,7 +151,12 @@ class VerifiedAgentTests(unittest.TestCase):
     def test_workspace_symlink_denied(self):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d)
-            (p / "link.py").symlink_to(self.task.workspace / "retry_budget.py")
+            try:
+                (p / "link.py").symlink_to(self.task.workspace / "retry_budget.py")
+            except OSError as exc:
+                if getattr(exc, "winerror", None) == 1314:
+                    self.skipTest("Windows account cannot create symlinks; covered in Linux CI")
+                raise
             with self.assertRaises(ValueError):
                 vda.audit_workspace(p)
 
