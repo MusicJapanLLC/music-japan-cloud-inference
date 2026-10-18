@@ -43,7 +43,7 @@ class Tests(unittest.TestCase):
         req=c.build_request()
         self.assertEqual(set(req["messages"][1]),{"role","content"})
         self.assertEqual(req["model"],c.UPSTREAM_ID)
-        self.assertFalse(any("secret" in k or "token" in k for k in req))
+        self.assertFalse(any(k in req for k in ("api_key", "authorization", "access_token", "secret", "bearer")))
     def test_catalog_mismatch_blocks_before_generation(self):
         f=Fake(catalog={"data":[{"id":"pretend-1650b"}]})
         with self.assertRaisesRegex(c.CanaryError,"CATALOG_MODEL_MISMATCH"):
