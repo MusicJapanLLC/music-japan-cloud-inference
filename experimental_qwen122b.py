@@ -37,7 +37,7 @@ PARTS=[
      "sha256":"c1143c2dc6b5ecf76c4acd1c44bbc01093a8daab1584123a9f8da7c823796de3"},
     {"name":"IQ4_XS/Qwen3.5-122B-A10B-IQ4_XS-00003-of-00003.gguf",
      "bytes":13_178_122_240,
-     "sha256":"8dab1537cff890e81569c8cd7e460deca4df24d98ab8440c9825c4dc00"},
+     "sha256":"8dab1537cff890e81569c8cd7e460deca4df24d98ab8440c9825c4dc81c4dc00"},
 ]
 PROMPT="Calculate 19 times 23. Answer only the integer."
 MODEL_BYTES=sum(x["bytes"] for x in PARTS)
