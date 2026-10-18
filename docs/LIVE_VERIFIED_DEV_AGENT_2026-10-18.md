@@ -23,7 +23,7 @@ Use **only explicit public fixtures**. A GitHub-hosted runner is an ephemeral te
 On an already-authenticated owner machine with `frontier_client.py` installed and healthy:
 
 ```powershell
-git clone https://github.com/MusicJapanLLC/music-japan-cloud-inference.git mj-public-dev
+git clone --config core.autocrlf=false https://github.com/MusicJapanLLC/music-japan-cloud-inference.git mj-public-dev
 cd mj-public-dev
 git switch -c runs/vda/recheck-20261018
 python -m unittest discover -p 'test_*.py' -q
@@ -37,3 +37,9 @@ The runner checks that its branch is `runs/vda/*`, the remote is precisely this 
 **Rules:** No customer messages, Music Japan private code, private DB, credentials or proprietary model outputs in public runners or prompts. This is verified **agent-workflow repair capability**; it is not a new 120B+ foundation model, new GPU allocation or proof of GPT-6/Astra/other closed-model parity.
 
 The receipt `sha256` is a reproducible *integrity digest*, not a key-signed cryptographic identity proof.
+
+## Subsequent fresh-inference verification
+
+The preceding section records the earlier replay-only checkpoint. A subsequent execution called the existing FrontierRuntime client after the failing baseline, without replaying a saved answer, and passed both the candidate and fresh final cloud check. See [fresh generation and full receipt](../evidence/live-dev-fresh-20261018/receipt.json) and [Japanese operating notes](LIVE_DEVELOPMENT_AGENT_2026-10-18.md). Sanitized final-answer captures and selected source are now published in `evidence/`; raw provider reasoning and local credentials remain excluded.
+
+On Windows, use the documented clone configuration to preserve the public fixture bytes. This was checked with a fresh local clone against the manifest from the actual Linux cloud baseline; do not reset an unrelated worktree to normalize its files.
