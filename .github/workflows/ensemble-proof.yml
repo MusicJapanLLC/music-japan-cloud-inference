@@ -1,0 +1,30 @@
+name: Music Japan objective model ensemble offline proof
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ensemble_retro.py"
+      - "test_ensemble_retro.py"
+      - "objective_verifier.py"
+      - "test_objective_verifier.py"
+      - ".github/workflows/ensemble-proof.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-tool-ensemble:
+    name: Verify proof-guided independent ensemble; no inference or paid API
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate safe non-LLM oracle-free selection and tool verification
+        run: |
+          set -euo pipefail
+          python3 -m unittest -q test_ensemble_retro.py test_objective_verifier.py
+          python3 -m unittest -q test_reasoning_mesh.py
