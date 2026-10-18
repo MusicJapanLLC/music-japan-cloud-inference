@@ -68,7 +68,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m unittest -q test_deliberation_selector.py test_objective_verifier.py
+          python3 -m unittest -q test_deliberation_selector.py test_language_equivalence.py test_objective_verifier.py
           python3 deliberation_selector.py \
             --proposal "$RUNNER_TEMP/proposer/propose.json" \
             --critique "$RUNNER_TEMP/challenger/challenge.json" \
