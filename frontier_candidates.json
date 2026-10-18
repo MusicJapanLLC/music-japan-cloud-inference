@@ -1,0 +1,843 @@
+{
+  "schema_version": "1.0.0",
+  "compiled_at_utc": "2026-10-18T08:58:31Z",
+  "public_sources_retrieved_on": "2026-10-18",
+  "scope": "Public primary-source research snapshot; no private environment, account, credential, or allocation evidence.",
+  "interpretation": {
+    "provider_metadata_is_inference_proof": false,
+    "api_access_implies_weight_ownership": false,
+    "open_weights_implies_original_training_ownership": false,
+    "parameter_count_implies_quality": false,
+    "superiority_to_gpt6_astra_fable51_or_gemini4argon": "not_claimed",
+    "published_recipes_were_executed": false,
+    "note": "All candidates remain executable=false until an authorized route is measured. Third-party hosting, self-hosting licensed weights, and training a derivative are distinct states."
+  },
+  "stage_definitions": {
+    "source_verified": "A primary source describes the artifact; no inference was run.",
+    "provider_metadata_observed": "A service's metadata lists a provider; this is not a successful inference.",
+    "official_api_documented": "Official docs map an API model name to a version; account access and inference are untested.",
+    "catalog_only": "A catalog page exists; operational provider availability is not established.",
+    "no_provider_listing_observed": "No provider was listed in the metadata returned by this lookup; other routes may exist.",
+    "deprecated": "The provider explicitly labels this route deprecated.",
+    "no_endpoints": "A provider endpoint lookup returned an empty endpoints array."
+  },
+  "promotion_requirements": [
+    "Record an authorized serving route and its expected model identity.",
+    "Check current account allowance and route pricing before a request.",
+    "For zero-new-spend mode, prohibit paid model fallbacks and paid optional tools.",
+    "Record a completed synthetic inference including returned model identity and final output.",
+    "Record tool-call round-trip and application-specific acceptance results before agent use.",
+    "For self-hosting, record checkpoint revision, precision, runtime, hardware, and output verification."
+  ],
+  "candidates": [
+    {
+      "candidate_id": "nemotron_3_ultra_nvfp4",
+      "role": "baseline",
+      "model_id": "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-NVFP4",
+      "executable": false,
+      "total_parameters": {
+        "value": 550000000000,
+        "evidence_label": "developer_reported_model_total",
+        "note": "Advertised total; packed tensor storage counts are not interchangeable with model parameter counts.",
+        "source_urls": [
+          "https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-NVFP4/raw/main/README.md"
+        ]
+      },
+      "active_parameters": {
+        "value": 55000000000,
+        "evidence_label": "developer_reported_active_parameters",
+        "note": "MoE active count does not describe full weight-residency requirements.",
+        "source_urls": [
+          "https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-NVFP4/raw/main/README.md"
+        ]
+      },
+      "context": {
+        "max_documented_tokens": 1000000,
+        "evidence_label": "developer_advertised_context",
+        "source_urls": [
+          "https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-NVFP4/raw/main/README.md"
+        ],
+        "route_limits": {
+          "openrouter_free_context": 1000000,
+          "openrouter_free_max_completion": 65536
+        }
+      },
+      "license": {
+        "name": "OpenMDW License Agreement 1.1",
+        "kind": "open_model_license",
+        "evidence_label": "current_model_card_governing_download_terms",
+        "full_license_text_reviewed": false,
+        "source_urls": [
+          "https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-NVFP4/raw/main/README.md",
+          "https://openmdw.ai/license/1-1/"
+        ]
+      },
+      "source_urls": [
+        "https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-NVFP4/raw/main/README.md",
+        "https://openmdw.ai/license/1-1/",
+        "https://openrouter.ai/api/v1/models/nvidia/nemotron-3-ultra-550b-a55b:free/endpoints"
+      ],
+      "provider_listing": [
+        {
+          "service": "OpenRouter",
+          "model_id": "nvidia/nemotron-3-ultra-550b-a55b:free",
+          "stage": "provider_metadata_observed",
+          "observed_at_utc": "2026-10-18T08:58:31Z",
+          "providers": [
+            {
+              "name": "Nvidia",
+              "reported_status": 0
+            }
+          ],
+          "pricing_per_million_tokens_usd": {
+            "input": 0,
+            "output": 0
+          },
+          "supported_parameters": [
+            "reasoning",
+            "include_reasoning",
+            "temperature",
+            "max_tokens",
+            "seed",
+            "top_p",
+            "tools",
+            "tool_choice",
+            "reasoning_effort"
+          ],
+          "inference_tested": false,
+          "checkpoint_precision_match": "unverified; endpoint reports quantization=unknown",
+          "source_urls": [
+            "https://openrouter.ai/api/v1/models/nvidia/nemotron-3-ultra-550b-a55b:free/endpoints"
+          ]
+        },
+        {
+          "service": "Hugging Face Inference Providers",
+          "model_id": "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-NVFP4",
+          "stage": "provider_metadata_observed",
+          "providers": [
+            {
+              "name": "fireworks-ai",
+              "reported_status": "live"
+            },
+            {
+              "name": "together",
+              "reported_status": "error"
+            }
+          ],
+          "observed_at_utc": "2026-10-18T08:58:31Z",
+          "observation_method": "Hugging Face read-only hub_repo_details metadata",
+          "inference_tested": false,
+          "zero_new_spend_eligibility": "unverified_account_credits_required",
+          "source_urls": [
+            "https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-NVFP4"
+          ]
+        }
+      ],
+      "memory_recipe": {
+        "evidence_label": "official_recipe_observed_not_run",
+        "checkpoint_precision": "NVFP4",
+        "measured_here": false,
+        "weight_memory_bytes": null,
+        "memory_note": "Mixed precision; no actual loaded weight memory measured in this task.",
+        "documented_hardware_options": [
+          {
+            "gpu": "B200",
+            "count": 4
+          },
+          {
+            "gpu": "GB200",
+            "count": 4
+          },
+          {
+            "gpu": "GB300",
+            "count": 4
+          },
+          {
+            "gpu": "B300",
+            "count": 4
+          },
+          {
+            "gpu": "H100",
+            "count": 8
+          }
+        ],
+        "published_runtime_examples": [
+          "vllm/vllm-openai:v0.22.0",
+          "lmsysorg/sglang:v0.5.13"
+        ],
+        "source_urls": [
+          "https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-NVFP4/raw/main/README.md"
+        ]
+      },
+      "integration_notes": [
+        "Provider endpoint precision and the downloadable NVFP4 checkpoint must be recorded separately.",
+        "The OpenRouter listing supports tool calls but does not establish enforced JSON-schema output."
+      ]
+    },
+    {
+      "candidate_id": "deepseek_v41_flash_1017",
+      "role": "candidate",
+      "model_id": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+      "executable": false,
+      "total_parameters": {
+        "value": null,
+        "evidence_label": "component_counts_and_rounded_hub_metadata",
+        "components": [
+          {
+            "name": "backbone",
+            "parameters": 552000000000
+          },
+          {
+            "name": "Engram conditional memory",
+            "parameters": 196000000000
+          }
+        ],
+        "hf_reported_tensor_count_approx": 763205300000,
+        "note": "552B is backbone only. Engram and additional modules are separate; do not label the full checkpoint as 552B. Component description comes from the base V4.1 release; 1017 is documented as its minor update.",
+        "source_urls": [
+          "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/raw/main/README.md",
+          "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017"
+        ]
+      },
+      "active_parameters": {
+        "prefill": 8000000000,
+        "decode": 16000000000,
+        "evidence_label": "developer_reported_backbone_activity",
+        "note": "These counts describe backbone computation, not full checkpoint storage.",
+        "source_urls": [
+          "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/raw/main/README.md"
+        ]
+      },
+      "context": {
+        "max_documented_tokens": 1000000,
+        "evidence_label": "developer_advertised_context",
+        "source_urls": [
+          "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/raw/main/README.md",
+          "https://api-docs.deepseek.com/quick_start/pricing/"
+        ]
+      },
+      "license": {
+        "name": "MIT",
+        "kind": "permissive",
+        "evidence_label": "official_model_repository_license",
+        "source_urls": [
+          "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017",
+          "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/raw/main/README.md"
+        ]
+      },
+      "source_urls": [
+        "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017",
+        "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/raw/main/README.md",
+        "https://api-docs.deepseek.com/quick_start/pricing/",
+        "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/raw/main/inference/README.md"
+      ],
+      "provider_listing": [
+        {
+          "service": "DeepSeek official API",
+          "model_id": "deepseek-flash",
+          "expected_version": "DeepSeek-V4.1-Flash-1017",
+          "stage": "official_api_documented",
+          "observed_at_utc": "2026-10-18T08:58:31Z",
+          "pricing_per_million_tokens_usd": {
+            "off_peak": {
+              "input_cache_hit": 0.003,
+              "input_cache_miss": 0.15,
+              "output": 0.6
+            },
+            "peak": {
+              "input_cache_hit": 0.006,
+              "input_cache_miss": 0.3,
+              "output": 1.2
+            }
+          },
+          "zero_new_spend_eligibility": "only_if_existing_authorized_granted_allowance_is_verified",
+          "inference_tested": false,
+          "source_urls": [
+            "https://api-docs.deepseek.com/quick_start/pricing/"
+          ]
+        },
+        {
+          "service": "Hugging Face Inference Providers",
+          "model_id": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+          "stage": "no_provider_listing_observed",
+          "observed_at_utc": "2026-10-18T08:58:31Z",
+          "providers": [],
+          "observation_method": "Hugging Face read-only hub_repo_details metadata",
+          "inference_tested": false,
+          "source_urls": [
+            "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017"
+          ]
+        }
+      ],
+      "memory_recipe": {
+        "evidence_label": "base_release_reference_recipe_only",
+        "measured_here": false,
+        "target_revision_recipe_verified": false,
+        "reference_model_id": "deepseek-ai/DeepSeek-V4.1-Flash",
+        "weight_memory_bytes": null,
+        "documented_model_parallel_example": 8,
+        "documented_conversion": "fp4 experts; one converted checkpoint per tensor-parallel rank",
+        "memory_note": "MP=8 is an example in the base release reference implementation, not a demonstrated minimum or a verified 1017 deployment. Engram, vision and other modules must be included in sizing.",
+        "source_urls": [
+          "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/raw/main/inference/README.md",
+          "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/raw/main/README.md"
+        ]
+      },
+      "integration_notes": [
+        "Official API alias can change versions; record the returned version.",
+        "Use official encoding/deepseek-recipe handling instead of assuming a Jinja template.",
+        "Base release documents numeric reasoning_effort 1-100.",
+        "Official API model inference is paid; temporary free Search/Fetch calls do not make inference free."
+      ]
+    },
+    {
+      "candidate_id": "kimi_k3",
+      "role": "candidate",
+      "model_id": "moonshotai/Kimi-K3",
+      "executable": false,
+      "total_parameters": {
+        "value": 2800000000000,
+        "evidence_label": "developer_reported_model_total",
+        "note": "2.8T advertised total; native quantization-aware checkpoint.",
+        "source_urls": [
+          "https://huggingface.co/moonshotai/Kimi-K3"
+        ]
+      },
+      "active_parameters": {
+        "value": 104000000000,
+        "evidence_label": "developer_reported_active_parameters",
+        "note": "MoE active count is not the weight-residency requirement.",
+        "source_urls": [
+          "https://huggingface.co/moonshotai/Kimi-K3"
+        ]
+      },
+      "context": {
+        "max_documented_tokens": 1048576,
+        "evidence_label": "official_model_card",
+        "source_urls": [
+          "https://huggingface.co/moonshotai/Kimi-K3"
+        ]
+      },
+      "license": {
+        "name": "Kimi K3 License",
+        "kind": "custom",
+        "evidence_label": "license_text_reviewed",
+        "summary": "Allows copying, modification, deployment and fine-tuning with notices. Separate agreement conditions apply to qualifying Model-as-a-Service businesses above USD 20M aggregate trailing-12-month revenue; additional attribution thresholds and exceptions are specified in the license.",
+        "source_urls": [
+          "https://huggingface.co/moonshotai/Kimi-K3/blob/main/LICENSE"
+        ]
+      },
+      "source_urls": [
+        "https://huggingface.co/moonshotai/Kimi-K3",
+        "https://huggingface.co/moonshotai/Kimi-K3/blob/main/LICENSE",
+        "https://recipes.vllm.ai/moonshotai/Kimi-K3",
+        "https://build.nvidia.com/moonshotai/kimi-k3"
+      ],
+      "provider_listing": [
+        {
+          "service": "Hugging Face Inference Providers",
+          "model_id": "moonshotai/Kimi-K3",
+          "stage": "provider_metadata_observed",
+          "providers": [
+            {
+              "name": "together",
+              "reported_status": "live"
+            },
+            {
+              "name": "fireworks-ai",
+              "reported_status": "live"
+            },
+            {
+              "name": "featherless-ai",
+              "reported_status": "live"
+            },
+            {
+              "name": "baseten",
+              "reported_status": "live"
+            },
+            {
+              "name": "deepinfra",
+              "reported_status": "live"
+            }
+          ],
+          "observed_at_utc": "2026-10-18T08:58:31Z",
+          "observation_method": "Hugging Face read-only hub_repo_details metadata",
+          "source_urls": [
+            "https://huggingface.co/moonshotai/Kimi-K3"
+          ],
+          "inference_tested": false,
+          "zero_new_spend_eligibility": "unverified_account_credits_required"
+        },
+        {
+          "service": "NVIDIA Build",
+          "model_id": "moonshotai/kimi-k3",
+          "stage": "deprecated",
+          "route": "Free Endpoint",
+          "partner_endpoint": "Available",
+          "observed_at_utc": "2026-10-18T08:58:31Z",
+          "inference_tested": false,
+          "source_urls": [
+            "https://build.nvidia.com/moonshotai/kimi-k3"
+          ]
+        }
+      ],
+      "memory_recipe": {
+        "evidence_label": "official_runtime_recipe_observed_not_run",
+        "measured_here": false,
+        "checkpoint_precision": "MXFP4 weights / MXFP8 activations",
+        "weight_memory_bytes": null,
+        "documented_minimum_hardware": {
+          "gpu": "GB300",
+          "count": 8
+        },
+        "documented_runtime_note": "K3 image is CUDA 13-only and requires r580+ driver; use a tested and pinned compatible runtime.",
+        "source_urls": [
+          "https://recipes.vllm.ai/moonshotai/Kimi-K3"
+        ]
+      },
+      "integration_notes": [
+        "Always-thinking; reasoning_effort supports low, high and max.",
+        "Preserve complete assistant messages including reasoning_content and tool_calls on subsequent turns.",
+        "No authorized account entitlement or inference success is asserted by provider metadata."
+      ]
+    },
+    {
+      "candidate_id": "qwen38_24t_a95b",
+      "role": "candidate",
+      "model_id": "Qwen/Qwen3.8-2.4T-A95B",
+      "executable": false,
+      "total_parameters": {
+        "value": 2400000000000,
+        "evidence_label": "developer_reported_model_total",
+        "note": "Advertised 2.4T; exact stored tensor count differs.",
+        "source_urls": [
+          "https://huggingface.co/Qwen/Qwen3.8-2.4T-A95B"
+        ]
+      },
+      "active_parameters": {
+        "value": 95000000000,
+        "evidence_label": "developer_reported_active_parameters",
+        "note": "MoE active count is not the weight-residency requirement.",
+        "source_urls": [
+          "https://huggingface.co/Qwen/Qwen3.8-2.4T-A95B"
+        ]
+      },
+      "context": {
+        "native_tokens": 262144,
+        "max_documented_tokens": 1010000,
+        "evidence_label": "official_model_card_native_and_extended",
+        "source_urls": [
+          "https://huggingface.co/Qwen/Qwen3.8-2.4T-A95B"
+        ]
+      },
+      "license": {
+        "name": "Qwen3.8-Max License",
+        "kind": "custom",
+        "evidence_label": "license_text_reviewed",
+        "summary": "Allows copying, modification, hosting and fine-tuning with notices. Separate licensing applies to qualifying Model-as-a-Service or AI Work Assistant businesses exceeding USD 50M aggregate trailing-12-month revenue; attribution thresholds and internal-use exceptions are specified.",
+        "source_urls": [
+          "https://huggingface.co/Qwen/Qwen3.8-2.4T-A95B/raw/main/LICENSE"
+        ]
+      },
+      "source_urls": [
+        "https://huggingface.co/Qwen/Qwen3.8-2.4T-A95B",
+        "https://huggingface.co/Qwen/Qwen3.8-2.4T-A95B/raw/main/LICENSE",
+        "https://recipes.vllm.ai/Qwen/Qwen3.8-2.4T-A95B"
+      ],
+      "provider_listing": [
+        {
+          "service": "Hugging Face Inference Providers",
+          "model_id": "Qwen/Qwen3.8-2.4T-A95B",
+          "stage": "provider_metadata_observed",
+          "providers": [
+            {
+              "name": "novita",
+              "reported_status": "live"
+            },
+            {
+              "name": "together",
+              "reported_status": "live"
+            },
+            {
+              "name": "fireworks-ai",
+              "reported_status": "live"
+            },
+            {
+              "name": "deepinfra",
+              "reported_status": "live"
+            }
+          ],
+          "observed_at_utc": "2026-10-18T08:58:31Z",
+          "observation_method": "Hugging Face read-only hub_repo_details metadata",
+          "source_urls": [
+            "https://huggingface.co/Qwen/Qwen3.8-2.4T-A95B"
+          ],
+          "inference_tested": false,
+          "zero_new_spend_eligibility": "unverified_account_credits_required"
+        }
+      ],
+      "memory_recipe": {
+        "evidence_label": "official_runtime_recipe_published_sizing_not_measured_here",
+        "measured_here": false,
+        "variants": [
+          {
+            "precision": "BF16",
+            "weights_tib": 4.45,
+            "recipe_sized_gb": 5871,
+            "hardware_examples": [
+              {
+                "gpu": "B300",
+                "count": 24
+              },
+              {
+                "gpu": "MI355X",
+                "count": 24
+              },
+              {
+                "gpu": "H200",
+                "count": 48
+              }
+            ]
+          },
+          {
+            "precision": "FP8",
+            "weights_tib": 2.27,
+            "recipe_sized_gb": 2996,
+            "hardware_examples": [
+              {
+                "gpu": "B300",
+                "count": 16
+              },
+              {
+                "gpu": "MI355X",
+                "count": 16
+              },
+              {
+                "gpu": "H200",
+                "count": 32
+              }
+            ]
+          },
+          {
+            "precision": "NVFP4 W4A4",
+            "weights_tib": 1.32,
+            "recipe_sized_gb": 1737,
+            "hardware_examples": [
+              {
+                "gpu": "B300",
+                "count": 8
+              },
+              {
+                "gpu": "GB300",
+                "count": 8,
+                "trays": 2
+              },
+              {
+                "gpu": "H200",
+                "count": 16
+              }
+            ]
+          }
+        ],
+        "memory_note": "Published recipe values include its sizing policy. They are not measured allocations here, and quantized variants are distinct artifacts.",
+        "source_urls": [
+          "https://recipes.vllm.ai/Qwen/Qwen3.8-2.4T-A95B"
+        ]
+      },
+      "integration_notes": [
+        "Open checkpoint is text-only and always-thinking.",
+        "Official Qwen3.8-Max API adds capabilities including vision and non-thinking; do not infer product/weight or benchmark parity.",
+        "Use supported reasoning_effort xhigh/medium/low and the documented preservation of thinking history."
+      ]
+    },
+    {
+      "candidate_id": "glm53",
+      "role": "candidate",
+      "model_id": "zai-org/GLM-5.3",
+      "executable": false,
+      "total_parameters": {
+        "value": 753329900000,
+        "evidence_label": "rounded_hugging_face_tensor_metadata",
+        "note": "Rounded stored-tensor metadata from official repository; not independently counted or equivalent to active parameters.",
+        "source_urls": [
+          "https://huggingface.co/zai-org/GLM-5.3"
+        ]
+      },
+      "active_parameters": {
+        "value": null,
+        "evidence_label": "not_independently_verified_for_this_checkpoint",
+        "note": "Official card says GLM-5.3 uses the GLM-5.2 base; this inventory does not infer the target active count.",
+        "source_urls": [
+          "https://huggingface.co/zai-org/GLM-5.3"
+        ]
+      },
+      "context": {
+        "max_documented_tokens": 1000000,
+        "evidence_label": "official_model_card_advertised_context",
+        "source_urls": [
+          "https://huggingface.co/zai-org/GLM-5.3"
+        ]
+      },
+      "license": {
+        "name": "GLM-5.3 License",
+        "kind": "custom",
+        "evidence_label": "license_text_reviewed",
+        "summary": "Allows copying, modification, deployment and fine-tuning with notices. Qualifying Model-as-a-Service businesses above USD 10B aggregate trailing-12-month revenue require Z.AI security review. Do not reuse GLM-5.2's MIT label.",
+        "source_urls": [
+          "https://huggingface.co/zai-org/GLM-5.3/raw/main/LICENSE"
+        ]
+      },
+      "source_urls": [
+        "https://huggingface.co/zai-org/GLM-5.3",
+        "https://huggingface.co/zai-org/GLM-5.3/raw/main/LICENSE"
+      ],
+      "provider_listing": [
+        {
+          "service": "Hugging Face Inference Providers",
+          "model_id": "zai-org/GLM-5.3",
+          "stage": "provider_metadata_observed",
+          "providers": [
+            {
+              "name": "novita",
+              "reported_status": "live"
+            },
+            {
+              "name": "together",
+              "reported_status": "live"
+            },
+            {
+              "name": "fireworks-ai",
+              "reported_status": "live"
+            },
+            {
+              "name": "featherless-ai",
+              "reported_status": "live"
+            },
+            {
+              "name": "zai-org",
+              "reported_status": "live"
+            },
+            {
+              "name": "baseten",
+              "reported_status": "live"
+            },
+            {
+              "name": "deepinfra",
+              "reported_status": "live"
+            }
+          ],
+          "observed_at_utc": "2026-10-18T08:58:31Z",
+          "observation_method": "Hugging Face read-only hub_repo_details metadata",
+          "source_urls": [
+            "https://huggingface.co/zai-org/GLM-5.3"
+          ],
+          "inference_tested": false,
+          "zero_new_spend_eligibility": "unverified_account_credits_required"
+        }
+      ],
+      "memory_recipe": {
+        "evidence_label": "not_sized",
+        "measured_here": false,
+        "weight_memory_bytes": null,
+        "documented_hardware_options": [],
+        "memory_note": "Card links supported runtime recipes, but target hardware sizing was not independently reviewed here. Do not infer fit from an MoE active count.",
+        "source_urls": [
+          "https://huggingface.co/zai-org/GLM-5.3"
+        ]
+      },
+      "integration_notes": [
+        "Same base model as GLM-5.2; vendor attributes gains to post-training.",
+        "reasoning_effort supports low/high/max with max default.",
+        "Card recommends explicit clear_thinking=true for chat; benchmark and agent-history settings must follow the relevant mode."
+      ]
+    },
+    {
+      "candidate_id": "glm53_flash",
+      "role": "candidate",
+      "model_id": "zai-org/GLM-5.3-Flash",
+      "executable": false,
+      "total_parameters": {
+        "value": 320000000000,
+        "evidence_label": "developer_reported_model_total",
+        "note": "Official advertised total is 320B; Hub display is approximately 321B.",
+        "source_urls": [
+          "https://huggingface.co/zai-org/GLM-5.3-Flash"
+        ]
+      },
+      "active_parameters": {
+        "value": 18000000000,
+        "evidence_label": "developer_reported_active_parameters",
+        "note": "Active count is not full model residency.",
+        "source_urls": [
+          "https://huggingface.co/zai-org/GLM-5.3-Flash"
+        ]
+      },
+      "context": {
+        "max_documented_tokens": 1048576,
+        "evidence_label": "official_runtime_recipe",
+        "source_urls": [
+          "https://recipes.vllm.ai/zai-org/GLM-5.3-Flash"
+        ]
+      },
+      "license": {
+        "name": "MIT",
+        "kind": "permissive",
+        "evidence_label": "license_text_reviewed",
+        "source_urls": [
+          "https://huggingface.co/zai-org/GLM-5.3-Flash/raw/main/LICENSE"
+        ]
+      },
+      "source_urls": [
+        "https://huggingface.co/zai-org/GLM-5.3-Flash",
+        "https://huggingface.co/zai-org/GLM-5.3-Flash/raw/main/LICENSE",
+        "https://recipes.vllm.ai/zai-org/GLM-5.3-Flash",
+        "https://openrouter.ai/z-ai/glm-5.3-flash:free"
+      ],
+      "provider_listing": [
+        {
+          "service": "OpenRouter",
+          "model_id": "z-ai/glm-5.3-flash:free",
+          "stage": "catalog_only",
+          "observed_at_utc": "2026-10-18T08:58:31Z",
+          "catalog_pricing_per_million_tokens_usd": {
+            "input": 0,
+            "output": 0
+          },
+          "provider_endpoint_lookup": "Not accessible through the web retrieval tool; no operational provider was confirmed.",
+          "inference_tested": false,
+          "zero_new_spend_eligibility": "requires_current_endpoint_metadata_and_authorized_account_quota_check",
+          "source_urls": [
+            "https://openrouter.ai/z-ai/glm-5.3-flash:free"
+          ]
+        },
+        {
+          "service": "Hugging Face model widget",
+          "model_id": "zai-org/GLM-5.3-Flash",
+          "stage": "catalog_only",
+          "visible_provider_name": "Novita",
+          "other_provider_names": "not enumerated in this snapshot",
+          "observed_at_utc": "2026-10-18T08:58:31Z",
+          "inference_tested": false,
+          "zero_new_spend_eligibility": "unverified_account_credits_required",
+          "source_urls": [
+            "https://huggingface.co/zai-org/GLM-5.3-Flash"
+          ]
+        }
+      ],
+      "memory_recipe": {
+        "evidence_label": "official_runtime_recipe_observed_not_run",
+        "measured_here": false,
+        "checkpoint_precision": "Native FP8",
+        "published_weight_memory_gib_approx": 306,
+        "memory_note": "Weight memory only; KV cache and runtime overhead are additional. Native FP8 and BF16/third-party NVFP4 are distinct variants.",
+        "documented_hardware_example": {
+          "gpu": "GB200",
+          "count": 4,
+          "layout": "TP4 on one tray"
+        },
+        "source_urls": [
+          "https://recipes.vllm.ai/zai-org/GLM-5.3-Flash"
+        ]
+      },
+      "integration_notes": [
+        "Image/video/text input and text output are documented.",
+        "Always-thinking; reasoning_effort low/high/max, default max.",
+        "Free catalog presence is not inference success and must not trigger a paid fallback."
+      ]
+    }
+  ],
+  "compute_options": {
+    "zerogpu": {
+      "stage": "official_documentation_only",
+      "allocation_verified": false,
+      "gpu_sizes": [
+        {
+          "name": "large",
+          "vram_gb": 48,
+          "quota_multiplier": 1
+        },
+        {
+          "name": "xlarge",
+          "vram_gb": 96,
+          "quota_multiplier": 2
+        }
+      ],
+      "daily_gpu_quota_minutes": {
+        "unauthenticated": 2,
+        "free_account": 5,
+        "pro": 40,
+        "team_member": 40,
+        "enterprise_member": 60
+      },
+      "reset_policy": "Exactly 24 hours after first GPU usage.",
+      "free_personal_hosting": "Up to 2 Spaces for accounts in good standing, verified email and account age over 30 days.",
+      "paid_overage": "Eligible PRO/Team/Enterprise accounts can automatically consume prepaid credits after included quota.",
+      "source_urls": [
+        "https://huggingface.co/docs/hub/en/spaces-zerogpu"
+      ]
+    },
+    "hf_inference_credits": {
+      "stage": "official_documentation_only",
+      "free_account_monthly_usd": 0,
+      "pro_monthly_general_compute_usd": 2,
+      "team_or_enterprise_monthly_general_compute_usd_per_seat": 2,
+      "account_balance_verified": false,
+      "source_urls": [
+        "https://huggingface.co/docs/inference-providers/en/pricing"
+      ]
+    },
+    "grants": [
+      {
+        "name": "Hugging Face Community GPU Grant",
+        "stage": "application_route_documented",
+        "applied": false,
+        "allocation_verified": false,
+        "note": "Space hardware settings offer applications; award and capacity are not guaranteed.",
+        "source_urls": [
+          "https://huggingface.co/docs/hub/en/spaces-gpus"
+        ]
+      },
+      {
+        "name": "NVIDIA Inception",
+        "stage": "application_route_documented",
+        "applied": false,
+        "allocation_verified": false,
+        "note": "Free membership with review and eligible NVIDIA/partner cloud-credit offers; no exact credit award is asserted.",
+        "source_urls": [
+          "https://www.nvidia.com/en-us/startups/"
+        ]
+      },
+      {
+        "name": "Google TPU Research Cloud",
+        "stage": "application_route_documented",
+        "applied": false,
+        "allocation_verified": false,
+        "note": "Free TPUs for accepted research; expects public research output. Not an allocated private-production GPU service.",
+        "source_urls": [
+          "https://sites.research.google/trc/about/"
+        ]
+      }
+    ],
+    "openrouter_quota": {
+      "stage": "official_documentation_only",
+      "account_quota_verified": false,
+      "check_endpoint": "GET /api/v1/key",
+      "counter_field": "free_model_daily_requests",
+      "note": "Do not hardcode legacy 50/1000 daily limits: current numeric table was not exposed in this web rendering.",
+      "source_urls": [
+        "https://openrouter.ai/docs/api_reference/limits"
+      ]
+    }
+  },
+  "stale_route_examples": [
+    {
+      "service": "OpenRouter",
+      "model_id": "z-ai/glm-5.2:free",
+      "stage": "no_endpoints",
+      "observed_endpoint_count": 0,
+      "source_urls": [
+        "https://openrouter.ai/api/v1/models/z-ai/glm-5.2:free/endpoints"
+      ]
+    }
+  ]
+}

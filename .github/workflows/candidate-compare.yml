@@ -1,0 +1,67 @@
+name: Frozen candidate comparison
+
+on:
+  push:
+    branches: ['runs/frontier-compare/**']
+    paths:
+      - 'compare_candidates.py'
+      - 'test_compare_candidates.py'
+      - 'gateway_candidate_capture.py'
+      - 'test_gateway_candidate_capture.py'
+      - 'samples/lease-finalization/**'
+      - 'evidence/candidate-compare-20261018/captures.json'
+      - '.github/workflows/candidate-compare.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frozen-candidate-compare-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify controller behavior without model calls
+        run: python3 -B -m unittest -v test_verified_dev_agent test_compare_candidates test_gateway_candidate_capture
+      - name: Prepare the existing isolated runtime
+        run: |
+          mkdir -p out
+          docker pull python:3.12-alpine
+          docker image inspect python:3.12-alpine --format '{{.Id}}' > out/docker-image-id.txt
+      - name: Check frozen public candidates on fresh workspaces
+        run: >-
+          python3 -B compare_candidates.py
+          --task samples/lease-finalization/task.json
+          --captures evidence/candidate-compare-20261018/captures.json
+          --execute --concurrency 3 --budget-seconds 450
+          --receipt out/comparison.json
+          --selected out/selected-edits.json
+      - name: Record exact cloud execution context
+        if: always()
+        env:
+          MJ_CHECK_COMMIT: ${{ github.sha }}
+          MJ_CHECK_RUN: ${{ github.run_id }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib
+          out = pathlib.Path('out')
+          out.mkdir(exist_ok=True)
+          context = {'github_commit': os.environ['MJ_CHECK_COMMIT'],
+                     'github_run_id': os.environ['MJ_CHECK_RUN'],
+                     'candidate_network': 'none', 'new_model_calls_in_ci': 0,
+                     'runner_label': 'ubuntu-24.04'}
+          (out / 'cloud-context.json').write_text(json.dumps(context, indent=2) + '\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frozen-candidate-comparison
+          path: out/
+          if-no-files-found: error
+          retention-days: 14
