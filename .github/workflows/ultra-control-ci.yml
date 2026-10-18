@@ -1,0 +1,42 @@
+name: Music Japan Ultra One-Command — Real Model Chain Acceptance
+on:
+  push:
+    branches: ['feature/mj-ultra-onecommand-20261018']
+    paths:
+      - '.github/workflows/ultra-control-ci.yml'
+      - 'mj_ultra.py'
+      - 'test_mj_ultra.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: mj-ultra-control-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify genuine model proofs, modes, public privacy, and CLI output
+        run: |
+          set -euo pipefail
+          python3 -m unittest -q test_mj_ultra.py test_verify_max_ultra_chain.py test_reasoning_profiles.py
+          python3 -m py_compile mj_ultra.py
+  existing-real-run-acceptance:
+    needs: tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Re-fetch verified actual published 20B to 120B run from GitHub
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 mj_ultra.py collect 39098211563 --mode max \
+            --public-question 'Calculate 314 times 29. Answer only the integer.'
