@@ -1,0 +1,182 @@
+{
+  "cases": [
+    {
+      "decision": "MAJORITY",
+      "id": "math_product",
+      "independent_agreement": 7,
+      "majority_passed": true,
+      "oracle_any_model_correct": true,
+      "tool_assisted_answer": "437",
+      "tool_assisted_passed": true,
+      "tool_source": "model_with_independent_tool_verification",
+      "vote_count": 7,
+      "voted_answer": "437"
+    },
+    {
+      "decision": "MAJORITY",
+      "id": "math_multiplication",
+      "independent_agreement": 7,
+      "majority_passed": true,
+      "oracle_any_model_correct": true,
+      "tool_assisted_answer": "4826",
+      "tool_assisted_passed": true,
+      "tool_source": "model_with_independent_tool_verification",
+      "vote_count": 7,
+      "voted_answer": "4826"
+    },
+    {
+      "decision": "TIED_ABSTAIN",
+      "id": "math_multistep",
+      "independent_agreement": 1,
+      "majority_passed": false,
+      "oracle_any_model_correct": true,
+      "tool_assisted_answer": "156",
+      "tool_assisted_passed": true,
+      "tool_source": "deterministic_tool_correction",
+      "vote_count": 7,
+      "voted_answer": ""
+    },
+    {
+      "decision": "MAJORITY",
+      "id": "linear_equation",
+      "independent_agreement": 5,
+      "majority_passed": true,
+      "oracle_any_model_correct": true,
+      "tool_assisted_answer": "13",
+      "tool_assisted_passed": true,
+      "tool_source": "model_with_independent_tool_verification",
+      "vote_count": 7,
+      "voted_answer": "13"
+    },
+    {
+      "decision": "MAJORITY",
+      "id": "word_reverse",
+      "independent_agreement": 7,
+      "majority_passed": true,
+      "oracle_any_model_correct": true,
+      "tool_assisted_answer": "ZYXcba",
+      "tool_assisted_passed": true,
+      "tool_source": "model_with_independent_tool_verification",
+      "vote_count": 7,
+      "voted_answer": "ZYXcba"
+    },
+    {
+      "decision": "MAJORITY",
+      "id": "weekday",
+      "independent_agreement": 3,
+      "majority_passed": true,
+      "oracle_any_model_correct": true,
+      "tool_assisted_answer": "Sunday",
+      "tool_assisted_passed": true,
+      "tool_source": "model_with_independent_tool_verification",
+      "vote_count": 7,
+      "voted_answer": "Sunday"
+    },
+    {
+      "decision": "MAJORITY",
+      "id": "logical_rule",
+      "independent_agreement": 7,
+      "majority_passed": true,
+      "oracle_any_model_correct": true,
+      "tool_assisted_answer": "NO",
+      "tool_assisted_passed": true,
+      "tool_source": "model_unverified",
+      "vote_count": 7,
+      "voted_answer": "NO"
+    },
+    {
+      "decision": "MAJORITY",
+      "id": "age_gap",
+      "independent_agreement": 7,
+      "majority_passed": true,
+      "oracle_any_model_correct": true,
+      "tool_assisted_answer": "3",
+      "tool_assisted_passed": true,
+      "tool_source": "model_unverified",
+      "vote_count": 7,
+      "voted_answer": "3"
+    },
+    {
+      "decision": "MAJORITY",
+      "id": "sum_squares",
+      "independent_agreement": 7,
+      "majority_passed": true,
+      "oracle_any_model_correct": true,
+      "tool_assisted_answer": "55",
+      "tool_assisted_passed": true,
+      "tool_source": "model_with_independent_tool_verification",
+      "vote_count": 7,
+      "voted_answer": "55"
+    },
+    {
+      "decision": "MAJORITY",
+      "id": "format",
+      "independent_agreement": 7,
+      "majority_passed": true,
+      "oracle_any_model_correct": true,
+      "tool_assisted_answer": "ONLINE",
+      "tool_assisted_passed": true,
+      "tool_source": "model_with_independent_tool_verification",
+      "vote_count": 7,
+      "voted_answer": "ONLINE"
+    },
+    {
+      "decision": "MAJORITY",
+      "id": "json_schema",
+      "independent_agreement": 7,
+      "majority_passed": true,
+      "oracle_any_model_correct": true,
+      "tool_assisted_answer": "{\"ok\":true,\"count\":3}",
+      "tool_assisted_passed": true,
+      "tool_source": "model_unverified",
+      "vote_count": 7,
+      "voted_answer": "{\"ok\":true,\"count\":3}"
+    },
+    {
+      "decision": "MAJORITY",
+      "id": "japanese",
+      "independent_agreement": 3,
+      "majority_passed": false,
+      "oracle_any_model_correct": true,
+      "tool_assisted_answer": "おはようございます",
+      "tool_assisted_passed": false,
+      "tool_source": "model_unverified",
+      "vote_count": 7,
+      "voted_answer": "おはようございます"
+    }
+  ],
+  "explanation": "Multiple models and tool verification were compared on actual previous model answers; the oracle is a nondeployable upper bound.",
+  "external_model_credits_used": 0,
+  "new_model_calls": 0,
+  "oracle_used_in_selection": false,
+  "profiles": [
+    "baseline-9b",
+    "dense-27b",
+    "fable-reconstruction-27b",
+    "fable-reconstruction-9b",
+    "openai-20b",
+    "moe-35b",
+    "fable-opus-merge-9b"
+  ],
+  "real_model_outputs_reused": true,
+  "retrospective_only_not_live_service": true,
+  "schema": "mj.retro-ensemble-analysis/1.0",
+  "sha256": "879d5bc9678066f2ab6b91d9f2075c27858900cd31285617882dbc7d98b17a73",
+  "source_receipt_sha256": [
+    "09fa2a133f2956c89f73bc31597f4e8861c6f015cf19da9b6554a7addcdfb382",
+    "6a3313a8d9c3d11d5dc08aedeb8a811556365a8c950b9457efed1cb8a3fbade9",
+    "8561c005933ab9f2b64bbcb66f0abd6c411c9bd3ed8ef630a46ba0e7d8097cef",
+    "429f8e724b38be414f830230afee37f6c90a7312c72cbdb18179556db3033b2c",
+    "625dd5bd122c6d9818ab82154e25b388def2937003cb7317e6caaeac50d8e2c0",
+    "24f15814969485925b1878ba4eeb24d7efa175100172e2f0f0ca2ea40d049574",
+    "14324ab4bdfbb54c1aed0a64af74fa944a1dbab32756ecb48dca7dc2897045b6"
+  ],
+  "totals": {
+    "abstentions": 1,
+    "best_single_model_correct": 11,
+    "majority_ensemble_correct": 10,
+    "majority_plus_tools_correct": 11,
+    "oracle_upper_bound_correct": 12,
+    "tasks": 12
+  }
+}
