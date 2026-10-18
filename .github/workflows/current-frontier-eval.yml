@@ -1,0 +1,71 @@
+name: Current own-weight public development evaluation
+on:
+  pull_request:
+    paths: ['current_frontier_eval.py', 'test_current_frontier_eval.py', '.github/workflows/current-frontier-eval.yml']
+  push:
+    paths: ['current_frontier_eval.py', 'test_current_frontier_eval.py', '.github/workflows/current-frontier-eval.yml']
+  workflow_dispatch:
+    inputs:
+      run_free_frontier_eval:
+        description: 'Run exactly two bounded public synthetic own-weight developer evaluations on standard free public runners'
+        type: boolean
+        required: true
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: current-ownweight-dev-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Offline focused tests and dry run
+        run: |
+          python3 -m unittest -v test_current_frontier_eval.py
+          python3 current_frontier_eval.py --profile qwen38-27b-iq3s
+          python3 current_frontier_eval.py --profile nemotron35-120b-iq3xxs
+  evaluate:
+    needs: test
+    if: >-
+      github.event.repository.private == false &&
+      ((github.event_name == 'workflow_dispatch' && inputs.run_free_frontier_eval == true) ||
+       (github.event_name == 'push' && github.ref == 'refs/heads/research/current-frontier-ownweights-20261018' &&
+        contains(github.event.head_commit.message, '[run-free-frontier-eval]')))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        profile: [qwen38-27b-iq3s, nemotron35-120b-iq3xxs]
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Build exact reviewed CPU runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init -q "$RUNNER_TEMP/llama.cpp"
+          git -C "$RUNNER_TEMP/llama.cpp" remote add origin https://github.com/ggml-org/llama.cpp.git
+          git -C "$RUNNER_TEMP/llama.cpp" fetch -q --depth 1 origin 848bbda9041decd87904f7eb5a2990863ecce03b
+          git -C "$RUNNER_TEMP/llama.cpp" checkout -q --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/llama.cpp" rev-parse HEAD)" = 848bbda9041decd87904f7eb5a2990863ecce03b
+          cmake -S "$RUNNER_TEMP/llama.cpp" -B "$RUNNER_TEMP/llama.cpp/build" -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DGGML_CUDA=OFF -DLLAMA_CURL=OFF
+          cmake --build "$RUNNER_TEMP/llama.cpp/build" --target llama-server --config Release -j 4
+      - name: Verify complete weights and run one synthetic comparison
+        env:
+          PROFILE: ${{ matrix.profile }}
+          HF_HUB_DISABLE_TELEMETRY: '1'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 current_frontier_eval.py --execute --profile "$PROFILE" \
+            --binary "$RUNNER_TEMP/llama.cpp/build/bin/llama-server" \
+            --weights-dir "$RUNNER_TEMP/current-model" \
+            --output "$RUNNER_TEMP/current-eval/receipt.json"
+      # MJ_EVAL_RECEIPT is retained in the job log. Logs do not consume the
+      # artifact-storage allowance; no model weights, caches or artifacts upload.
