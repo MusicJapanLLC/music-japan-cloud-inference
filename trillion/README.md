@@ -13,13 +13,24 @@ An owner-operated runtime integration for **DeepSeek-V4-Pro-0813**, the publishe
 
 The actual 892.744 GB weight bytes have **not** been downloaded or executed during this work. Six smaller config/tokenizer/index/license assets totaling 18,022,774 bytes were downloaded from the exact publisher revision and their actual bytes were independently hashed. That is distinct from verifying all model weight bytes.
 
+The current execution policy is **free only**. The paid DeepSeek API workflow and its approval input have been withdrawn, and the `trillion_cloud.py` CLI blocks `--execute` before reading credentials or using the network. The remaining cloud job checks public model metadata only; it does not perform inference. See [CLOUD.md](CLOUD.md). Any free run of a different, smaller model is evidence for that named model only and does not complete the 1650B target.
+
 ## Implemented
 
-### Native 8-GPU execution contract
+### Explicit native launch profiles
 
 `trillion_runtime.py` validates the immutable source lock, then requires a real GPU inventory and the selected **vLLM 0.25.0** release before explicit launch. It checks actual sizes and SHA-256 of all 66 weight files plus all six auxiliary files before starting vLLM. Planning itself downloads nothing, creates no paid cloud resources and calls no hosted model API.
 
-The initial profile targets one Linux host with eight distinct Hopper-or-newer CUDA GPUs, tensor/expert parallelism, a short 8K/16K/32K context, four maximum concurrent sequences and an explicit memory reserve. The computed free-VRAM reserve is **134,985,390,256 bytes per GPU**. This is a conservative planning heuristic, NOT a measured fit guarantee or a universal hardware requirement. A real launch can still fail for topology, driver, kernel, memory fragmentation or actual KV usage. This profile does not expose the model's full million-token context or Think Max mode.
+Choose a profile explicitly when using the four-GPU path; omitting `--profile` preserves the initial eight-GPU profile. Both use one Linux host, a short 8K/16K/32K context, the same fixed model snapshot and owner authentication.
+
+| Profile | Hardware and parallelism | Free-VRAM planning reserve per GPU |
+| --- | --- | --- |
+| `cuda-8` (default) | Initial eight distinct Hopper-or-newer CUDA GPUs, TP8 + expert parallelism, four maximum sequences | 134,985,390,256 bytes |
+| `gb300-4` | Single 4×GB300 node, SM10.x, TP1 + DP4 + expert parallelism, one maximum sequence per DP rank | 268,897,038,688 bytes |
+
+The four-GPU profile follows the [publisher's recipe at the fixed 0813 revision](https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro-0813/blob/72e1d3230f6c080a530b0a1d46f8eb4602340597/README.md): DP4 + EP, FP8 KV cache, block size 256, `deep_gemm_mega_moe`, FP4 indexer cache and seven DSpark proposals with greedy draft sampling. TP remains one; this is not TP4 plus DP4, which would require 16 GPUs. Local DP is fixed to four multiprocessing ranks. The selected vLLM 0.25.0 release exposes these configuration fields. The built-in DeepSeek V4 tokenizer remains selected, without enabling arbitrary remote model code. The four-GPU profile uses 0.90 GPU memory utilization and caps sequences at one per DP rank; the default profile keeps 0.85 utilization and probabilistic draft sampling.
+
+Each profile checks its own GPU count, generation and per-device free memory. The SM10.x restriction applies to the GB300 kernel recipe; it does not treat desktop SM12x Blackwell as the same kernel target. GPU names are not used to attest a GB300 node or its interconnect. `topology_verified` remains false in preflight output. The free-VRAM figures are conservative planning heuristics, NOT measured fit guarantees or universal hardware requirements. A real launch can still fail for topology, driver, kernel, replicated dense parameters, memory fragmentation or actual KV usage. Neither profile exposes the model's full million-token context or Think Max mode. CPU offload, AMD and multi-node configurations require separate integration and are not silently selected.
 
 `vllm==0.25.0` is the selected integration pin, not a claim that every newer version is invalid or that this exact launch was GPU-tested. The v0.25.0 source exposes `method='dspark'` and `draft_sample_method='probabilistic'`.
 
@@ -38,6 +49,7 @@ The optional client is a library and one-shot CLI, not another production listen
 ```sh
 python -m unittest discover -s trillion -p 'test_*.py' -q
 python trillion/trillion_runtime.py --lock trillion/model.lock.json --weights-dir /owned/not-downloaded
+python trillion/trillion_runtime.py --profile gb300-4 --weights-dir /owned/not-downloaded
 python trillion/trillion_client.py
 ```
 
@@ -52,10 +64,13 @@ Use an existing owner-only credential file, not a token embedded in the command 
 ```sh
 python trillion/trillion_runtime.py \
   --lock trillion/model.lock.json \
+  --profile cuda-8 \
   --weights-dir /owned/models/DeepSeek-V4-Pro-0813 \
   --api-key-file /owned/secrets/trillion-api.key \
   --context 32768 --execute
 ```
+
+For an already allocated, authorized single 4×GB300 node, select `--profile gb300-4` in that command. The choice changes the hardware and kernel recipe only; all 66 weight hashes, auxiliary assets, vLLM version, explicit `--execute` and owner API-key checks still apply. This profile change has not downloaded the weights, allocated a GPU or performed native inference.
 
 The server binds only loopback. Existing 18186/18187/18188 listeners are untouched. Use the same owner-controlled machine for this initial client; no public tunnel or firewall changes are made:
 
@@ -69,6 +84,7 @@ Only explicitly public technical research inputs are accepted by this initial cl
 
 ## Verification boundaries
 
+- Four-GPU profile revision: 27 offline runtime-contract tests passed, covering explicit profile selection, per-card VRAM boundaries, wrong GPU count/architecture/version, the publisher's DP4 + EP command and no-launch planning. These are configuration tests with synthetic GPU inventories, not GPU inference or topology measurements
 - Local Linux authoring environment: 33 offline tests passed
 - Owner Windows notebook: 33 tests, 32 passed and 1 symlink-creation-privilege skip
 - Existing repository suite on owner Windows: 155 tests, 153 passed and 2 existing platform skips
@@ -86,3 +102,6 @@ Only explicitly public technical research inputs are accepted by this initial cl
 - Publisher DSpark: https://github.com/deepseek-ai/DeepSpec
 - vLLM selected speculative config: https://github.com/vllm-project/vllm/blob/v0.25.0/vllm/config/speculative.py
 - vLLM model recipe: https://recipes.vllm.ai/deepseek-ai/DeepSeek-V4-Pro
+- vLLM 0.25.0 parallel configuration: https://docs.vllm.ai/en/v0.25.0/api/vllm/config/parallel/
+- vLLM 0.25.0 kernel configuration: https://docs.vllm.ai/en/v0.25.0/api/vllm/config/kernel/
+- vLLM 0.25.0 attention configuration: https://docs.vllm.ai/en/v0.25.0/api/vllm/config/attention/

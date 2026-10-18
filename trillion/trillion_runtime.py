@@ -27,13 +27,34 @@ WEIGHT_BYTES=892744322880
 REPORTED_PARAMETERS=1650497936906
 ENGINE_VERSION='0.25.0'
 LOCK_SHA256='2ce8f718065196b23a0d444d085133577c0ce3f4e4d852df5ebdd0b72f7294c9'
-GPU_COUNT=8
+DEFAULT_PROFILE='cuda-8'
+# Closed, explicit launch profiles. These are configuration contracts, not GPU
+# benchmarks or permission to allocate hardware. Keep the existing default.
+PROFILES={
+    'cuda-8':{'gpu_count':8,'tensor_parallel_size':8,'data_parallel_size':1,
+              'minimum_compute_capability':9.0,'maximum_compute_capability':None,
+              'gpu_memory_utilization':'0.85','max_num_seqs':4,
+              'draft_sample_method':'probabilistic'},
+    # The fixed publisher README's single-node 4xGB300 recipe uses DP4 + EP,
+    # not TP4: https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro-0813/blob/
+    # 72e1d3230f6c080a530b0a1d46f8eb4602340597/README.md
+    'gb300-4':{'gpu_count':4,'tensor_parallel_size':1,'data_parallel_size':4,
+               'minimum_compute_capability':10.0,'maximum_compute_capability':11.0,
+               'gpu_memory_utilization':'0.90','max_num_seqs':1,
+               'draft_sample_method':'greedy'},
+}
 MAX_LOCK_BYTES=500_000
 CONTEXTS=(8192,16384,32768)
 
 
 class ContractError(ValueError):
     """Application-authored error codes only; no credential-bearing errors."""
+
+
+def launch_profile(name):
+    if not isinstance(name,str) or name not in PROFILES:
+        raise ContractError('UNSUPPORTED_LAUNCH_PROFILE')
+    return PROFILES[name]
 
 
 def canonical(value):
@@ -195,8 +216,9 @@ def collect_gpus():
     return parse_gpu_csv(p.stdout) if p.returncode==0 else []
 
 
-def preflight(lock,cards,engine_version):
+def preflight(lock,cards,engine_version,profile=DEFAULT_PROFILE):
     validate_lock(lock)
+    selected=launch_profile(profile)
     if not isinstance(cards,list):raise ContractError('INVALID_GPU_INVENTORY')
     uuids=set()
     for card in cards:
@@ -208,33 +230,52 @@ def preflight(lock,cards,engine_version):
         if card['free_bytes']>card['total_bytes']:raise ContractError('INVALID_GPU_MEMORY')
         cc=card.get('compute_capability')
         if type(cc) not in (float,int) or not math.isfinite(cc):raise ContractError('INVALID_GPU_ARCH')
-    per_card=math.ceil(WEIGHT_BYTES*1.20/GPU_COUNT)+2**30
+    gpu_count=selected['gpu_count']
+    # Preserve the initial 20% planning margin, calculated for the selected
+    # sharding degree. Real rank replication, topology and KV fit need a launch.
+    per_card=(WEIGHT_BYTES*6+5*gpu_count-1)//(5*gpu_count)+2**30
     reasons=[]
-    if len(cards)!=GPU_COUNT:reasons.append('EIGHT_VISIBLE_GPUS_REQUIRED')
+    if len(cards)!=gpu_count:reasons.append('GPU_COUNT_DOES_NOT_MATCH_PROFILE')
     if any(c['free_bytes']<per_card for c in cards):reasons.append('FREE_VRAM_BELOW_PLANNING_RESERVE')
-    if any(c['compute_capability']<9 for c in cards):reasons.append('HOPPER_OR_NEWER_REQUIRED')
+    if any(c['compute_capability']<selected['minimum_compute_capability']
+           or (selected['maximum_compute_capability'] is not None
+               and c['compute_capability']>=selected['maximum_compute_capability']) for c in cards):
+        reasons.append('GPU_ARCH_UNSUPPORTED_FOR_PROFILE')
     if engine_version!=ENGINE_VERSION:reasons.append('VLLM_VERSION_PIN_NOT_SATISFIED')
     return {'model':MODEL,'revision':REVISION,'eligible_for_launch':not reasons,'reasons':reasons,
+            'profile':profile,'required_gpus':gpu_count,
+            'tensor_parallel_size':selected['tensor_parallel_size'],
+            'data_parallel_size':selected['data_parallel_size'],
+            'topology_verified':False,
             'visible_gpus':len(cards),'minimum_free_bytes_per_gpu':per_card,
             'weight_bytes':WEIGHT_BYTES,'memory_requirement_is_estimate':True,
             'weights_verified':False,'model_inference_verified':False,
             'new_gpu_allocations':0,'model_provider_api_calls':0}
 
 
-def build_command(root,context=32768,speculation=True):
+def build_command(root,context=32768,speculation=True,profile=DEFAULT_PROFILE):
     if type(context) is not int or context not in CONTEXTS or type(speculation) is not bool:
         raise ContractError('UNSUPPORTED_CONTEXT_OR_SPECULATION')
+    selected=launch_profile(profile)
     args=['vllm','serve',str(Path(root).resolve()),'--served-model-name',SERVED_MODEL,
-          '--host','127.0.0.1','--port','18189','--tensor-parallel-size','8',
+          '--host','127.0.0.1','--port','18189',
+          '--tensor-parallel-size',str(selected['tensor_parallel_size']),
           '--distributed-executor-backend','mp','--enable-expert-parallel',
           '--tokenizer-mode','deepseek_v4','--reasoning-parser','deepseek_v4',
           '--tool-call-parser','deepseek_v4','--enable-auto-tool-choice',
-          '--max-model-len',str(context),'--max-num-seqs','4',
-          '--max-num-batched-tokens','8192','--gpu-memory-utilization','0.85',
+          '--max-model-len',str(context),'--max-num-seqs',str(selected['max_num_seqs']),
+          '--max-num-batched-tokens','8192',
+          '--gpu-memory-utilization',selected['gpu_memory_utilization'],
           '--enable-prefix-caching','--enable-chunked-prefill']
+    if profile=='gb300-4':
+        args+=['--data-parallel-size','4','--data-parallel-size-local','4',
+               '--data-parallel-backend','mp','--kv-cache-dtype','fp8','--block-size','256',
+               '--moe-backend','deep_gemm_mega_moe',
+               '--attention-config','{"use_fp4_indexer_cache":true}']
     if speculation:
         args+=['--speculative-config',json.dumps({'method':'dspark','num_speculative_tokens':7,
-                                                 'draft_sample_method':'probabilistic'},separators=(',',':'))]
+                                                 'draft_sample_method':selected['draft_sample_method']},
+                                                separators=(',',':'))]
     return args
 
 
@@ -254,6 +295,8 @@ def main(argv=None):
     cli=argparse.ArgumentParser(description=__doc__)
     cli.add_argument('--lock',type=Path,default=Path(__file__).with_name('model.lock.json'))
     cli.add_argument('--weights-dir',type=Path,required=True)
+    cli.add_argument('--profile',choices=tuple(PROFILES),default=DEFAULT_PROFILE,
+                     help='Explicit single-node hardware/parallelism profile; never allocates GPUs')
     cli.add_argument('--context',type=int,choices=CONTEXTS,default=32768)
     cli.add_argument('--baseline',action='store_true',help='Disable DSpark for a matched benchmark arm')
     cli.add_argument('--execute',action='store_true')
@@ -263,8 +306,8 @@ def main(argv=None):
         data=read_lock(args.lock)
         try:version=importlib.metadata.version('vllm')
         except importlib.metadata.PackageNotFoundError:version='not_installed'
-        report=preflight(data,collect_gpus(),version)
-        command=build_command(args.weights_dir,args.context,not args.baseline)
+        report=preflight(data,collect_gpus(),version,args.profile)
+        command=build_command(args.weights_dir,args.context,not args.baseline,args.profile)
         print(json.dumps({**report,'mode':'execute_requested' if args.execute else 'plan',
                           'command':command},ensure_ascii=False),flush=True)
         if not args.execute:return 0

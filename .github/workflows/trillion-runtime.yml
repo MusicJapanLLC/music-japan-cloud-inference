@@ -21,6 +21,7 @@ concurrency:
 jobs:
   offline-verification:
     name: Offline proof on ${{ matrix.os }}
+    if: ${{ github.event.repository.private == false }}
     strategy:
       fail-fast: false
       matrix:
@@ -46,3 +47,41 @@ jobs:
         run: python trillion/trillion_runtime.py --lock trillion/model.lock.json --weights-dir unused-not-downloaded --context 32768
       - name: Verify client is non-executing by default
         run: python trillion/trillion_client.py
+      - name: Verify official four-GB300 configuration without starting a model
+        run: python trillion/trillion_runtime.py --weights-dir unused-not-downloaded --profile gb300-4 --context 8192
+      - name: Verify official cloud metadata plan cannot enable paid inference
+        run: python trillion/trillion_cloud.py
+
+  official-model-metadata:
+    name: Verify the live official 0813 route without inference
+    if: ${{ github.event.repository.private == false }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Read the public model mapping once with the real cloud transport
+        run: |
+          python - <<'PY'
+          import json, os, sys
+          from pathlib import Path
+          sys.path.insert(0, 'trillion')
+          from trillion_cloud import FixedHTTPS, verify_mapping, wall_timeout
+          transport = FixedHTTPS(20)
+          with wall_timeout(30):
+              receipt = verify_mapping(transport.mapping())
+          receipt.update({
+              'execution_origin': 'GitHub-hosted ubuntu-24.04',
+              'transport': 'FixedHTTPS direct TLS; no proxy environment',
+              'commit_sha': os.environ['GITHUB_SHA'], 'run_id': os.environ['GITHUB_RUN_ID'],
+              'metadata_requests': transport.metadata_requests,
+              'inference_requests': transport.inference_requests, 'pc_delegation': False
+          })
+          assert receipt['metadata_requests'] == 1 and receipt['inference_requests'] == 0
+          Path('trillion-mapping-receipt.json').write_text(json.dumps(receipt, indent=2), encoding='utf-8')
+          print(json.dumps(receipt))
+          PY
