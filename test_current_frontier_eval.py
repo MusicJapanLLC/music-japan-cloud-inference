@@ -16,7 +16,7 @@ class EvaluationTests(unittest.TestCase):
         self.assertFalse(json.loads(output.getvalue())['model_inference'])
 
     def test_exact_profiles_and_runtime_pins(self):
-        self.assertEqual(len(evaluator.PROFILES),2)
+        self.assertEqual(len(evaluator.PROFILES),3)
         nemo=evaluator.PROFILES['nemotron35-120b-iq3xxs']
         self.assertEqual(sum(x[1] for x in nemo['files']),59764210568)
         self.assertEqual([x[0].split('-')[-1] for x in nemo['files']],['00003.gguf']*3)
@@ -99,7 +99,7 @@ class EvaluationTests(unittest.TestCase):
             self.assertEqual(record['error_code'],'OPERATION_FAILED')
             self.assertNotIn('SYNTHETIC_SECRET',log.getvalue())
 
-    def lifecycle(self, fail_generation=False, finish='stop'):
+    def lifecycle(self, fail_generation=False, finish='stop', profile_name='qwen38-27b-iq3s'):
         temp=tempfile.TemporaryDirectory();self.addCleanup(temp.cleanup)
         root=Path(temp.name);binary=root/'llama-server';binary.write_text('synthetic')
         child=Mock();child.poll.return_value=None
@@ -107,12 +107,12 @@ class EvaluationTests(unittest.TestCase):
         def local_request(port,token,route,timeout,body=None):
             requests.append(route)
             if route=='/health':return {'status':'ok'}
-            if route=='/v1/models':return {'data':[{'id':'qwen38-27b-iq3s'}]}
+            if route=='/v1/models':return {'data':[{'id':profile_name}]}
             if fail_generation:raise TimeoutError('SYNTHETIC_SECRET')
-            return dict(model='qwen38-27b-iq3s',choices=[dict(message=dict(content=json.dumps(evaluator.EXPECTED)),finish_reason=finish)],usage={'completion_tokens':100})
+            return dict(model=profile_name,choices=[dict(message=dict(content=json.dumps(evaluator.EXPECTED)),finish_reason=finish)],usage={'completion_tokens':100})
         with patch.object(evaluator,'resources',return_value={}), patch.object(evaluator,'download_weights',return_value=[root/'synthetic.gguf']), patch.object(evaluator.subprocess,'run',return_value=Mock(stdout=evaluator.LLAMA_COMMIT,stderr='')), patch.object(evaluator.subprocess,'Popen',return_value=child) as spawn, patch.object(evaluator,'request',side_effect=local_request), patch.object(evaluator.socket,'socket') as local_socket, contextlib.redirect_stdout(io.StringIO()):
             local_socket.return_value.__enter__.return_value.getsockname.return_value=('127.0.0.1',18895)
-            code=evaluator.run('qwen38-27b-iq3s',binary,root/'weights',root/'receipt.json')
+            code=evaluator.run(profile_name,binary,root/'weights',root/'receipt.json')
         record=json.loads((root/'receipt.json').read_text())
         return code,record,requests,child,spawn.call_args
 
@@ -153,6 +153,63 @@ class EvaluationTests(unittest.TestCase):
 
     def test_deadline_expiry_prevents_more_work(self):
         with self.assertRaises(TimeoutError):evaluator.time_left(evaluator.time.monotonic()-1,900)
+
+
+    def test_instruct_profile_reuses_pins_without_mutating_thinking_profile(self):
+        original=evaluator.PROFILES['nemotron35-120b-iq3xxs']
+        followup=evaluator.PROFILES['nemotron35-120b-iq3xxs-instruct']
+        for key in ('repo','revision','files'):
+            self.assertEqual(followup[key],original[key])
+        self.assertIsNot(followup['files'],original['files'])
+        self.assertEqual(original['template'],dict(enable_thinking=True,medium_effort=True))
+        self.assertEqual(followup['template'],dict(enable_thinking=False))
+        body=evaluator.model_body('nemotron35-120b-iq3xxs-instruct')
+        self.assertEqual(body['chat_template_kwargs'],dict(enable_thinking=False))
+        self.assertNotIn('reasoning_effort',body)
+        self.assertEqual(body['max_tokens'],256)
+        self.assertEqual(body['messages'],[dict(role='user',content=evaluator.PROMPT)])
+        self.assertEqual(evaluator.runtime_limits(original),(2048,1024))
+        self.assertEqual(evaluator.runtime_limits(evaluator.PROFILES['qwen38-27b-iq3s']),(2048,1024))
+
+    def test_instruct_dry_run_reports_actual_requested_limits_without_execution(self):
+        with patch.object(evaluator,'run') as run, contextlib.redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(evaluator.main(['--profile','nemotron35-120b-iq3xxs-instruct']),0)
+        run.assert_not_called()
+        record=json.loads(output.getvalue())
+        self.assertEqual(record['context'],1024)
+        self.assertEqual(record['max_output_tokens'],256)
+        self.assertEqual(record['reasoning_settings_requested'],dict(enable_thinking=False))
+        self.assertFalse(record['weights_downloaded'])
+        self.assertFalse(record['model_inference'])
+
+    def test_instruct_lifecycle_keeps_one_request_limits_and_cleanup_on_timeout(self):
+        for fail in (False,True):
+            code,record,requests,child,spawn=self.lifecycle(fail_generation=fail,
+                profile_name='nemotron35-120b-iq3xxs-instruct')
+            self.assertEqual(code,2 if fail else 0)
+            self.assertEqual(record['generation_attempts'],1)
+            self.assertEqual(requests.count('/v1/chat/completions'),1)
+            self.assertEqual(record['context'],1024)
+            self.assertEqual(record['max_output_tokens'],256)
+            self.assertEqual(record['reasoning_settings_requested'],dict(enable_thinking=False))
+            command=spawn.args[0]
+            self.assertEqual(command[command.index('-c')+1],'1024')
+            child.terminate.assert_called_once_with()
+
+    def test_instruct_workflow_is_separate_and_cannot_launch_original_matrix(self):
+        source=(Path(__file__).parent/'.github/workflows/current-frontier-eval.yml').read_text()
+        original=source.split('  evaluate:\n',1)[1].split('  evaluate_nemo_instruct:\n',1)[0]
+        followup=source.split('  evaluate_nemo_instruct:\n',1)[1]
+        self.assertIn('inputs.run_free_nemo_instruct_eval != true',original)
+        self.assertIn("!contains(github.event.head_commit.message, '[run-free-nemo-instruct-eval]')",original)
+        self.assertIn('github.event.repository.private == false',followup)
+        self.assertIn("github.ref == 'refs/heads/research/current-frontier-ownweights-20261018'",followup)
+        self.assertIn('inputs.run_free_nemo_instruct_eval == true',followup)
+        self.assertIn('[run-free-nemo-instruct-eval]',followup)
+        self.assertIn('runs-on: ubuntu-24.04',followup)
+        self.assertIn('--profile nemotron35-120b-iq3xxs-instruct',followup)
+        self.assertNotIn('matrix:',followup)
+        self.assertNotIn('upload-artifact',followup)
 
 
 if __name__=='__main__':unittest.main()

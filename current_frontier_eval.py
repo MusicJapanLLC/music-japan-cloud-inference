@@ -26,6 +26,13 @@ PROFILES = {
           ('UD-IQ3_XXS/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-UD-IQ3_XXS-00003-of-00003.gguf',9758873024,'e69358032031aa6dac6838dffb03ad2d54e510bad2fea10513db7dd27dfbd70b')],
    template=dict(enable_thinking=True, medium_effort=True), effort=None),
 }
+# A separate explicit comparison: reuse exact reviewed artifacts, never fall
+# back automatically from the original thinking-enabled profile.
+_nemo = PROFILES['nemotron35-120b-iq3xxs']
+PROFILES['nemotron35-120b-iq3xxs-instruct'] = dict(
+    repo=_nemo['repo'], revision=_nemo['revision'], files=list(_nemo['files']),
+    template=dict(enable_thinking=False), effort=None, context=1024, max_tokens=256)
+
 PROMPT = 'Synthetic public evaluation. Return ONLY JSON with keys arithmetic, reversed, earliest_finish, decision. arithmetic: Compute 19*23, then subtract 37, then divide by 8. reversed: reverse AbcXYZ, then lowercase it. earliest_finish: tasks A=3 days; B=2 days after A; C=5 days after A; D=2 days after B and C; E=1 day after D. Unlimited workers. All start at time 0 when possible. Return total days until E ends. decision: A transcript says "10:00 M: We could charge 30000 next month. 10:01 N: That is only a proposal; price not decided. 10:02 M: Agreed, undecided." Return the status only: proposed, approved, or completed.'
 EXPECTED = dict(arithmetic=50, reversed='zyxcba', earliest_finish=11, decision='proposed')
 MAX_RESPONSE = 2 * 1024 * 1024
@@ -139,10 +146,19 @@ def grade_text(text):
                 fence_contract_passed=bool(normalized and matches(value)))
 
 
+def runtime_limits(profile):
+    context=profile.get('context',2048)
+    maximum=profile.get('max_tokens',1024)
+    if (type(context) is not int or type(maximum) is not int
+            or not 256 <= context <= 2048 or not 1 <= maximum <= min(context,1024)):
+        raise ValueError('INVALID_PROFILE_LIMITS')
+    return context,maximum
+
+
 def model_body(profile_name):
     profile=PROFILES[profile_name]
     body=dict(model=profile_name,messages=[dict(role='user',content=PROMPT)],
-              max_tokens=1024,temperature=1.0,stream=False,chat_template_kwargs=dict(profile['template']))
+              max_tokens=runtime_limits(profile)[1],temperature=1.0,stream=False,chat_template_kwargs=dict(profile['template']))
     if profile['effort']:
         body['reasoning_effort']=profile['effort']
     return body
@@ -150,6 +166,7 @@ def model_body(profile_name):
 
 def run(profile_name, binary, weights_dir, output):
     profile=PROFILES[profile_name]
+    context,maximum=runtime_limits(profile)
     started=time.monotonic()
     deadline=started+TOTAL_SECONDS
     record=dict(schema='mj.current-ownweight-development-eval/1', profile=profile_name,
@@ -157,7 +174,7 @@ def run(profile_name, binary, weights_dir, output):
         llama_cpp_commit=LLAMA_COMMIT, prompt=PROMPT,prompt_sha256=hashlib.sha256(PROMPT.encode()).hexdigest(),
         input_class='synthetic_public',paid_compute_allocated=False,model_api_credits_used=0,
         reasoning_settings_requested=profile['template'],reasoning_effort_attested=False,
-        generation_attempts=0,inference_confirmed=False,context=2048,max_output_tokens=1024,
+        generation_attempts=0,inference_confirmed=False,context=context,max_output_tokens=maximum,
         runtime='cpu_mmap_fit_off_no_repack',vision_tested=False)
     child=None
     phase='resource_guard'
@@ -187,7 +204,7 @@ def run(profile_name, binary, weights_dir, output):
         with (output.parent/(profile_name+'-runtime.log')).open('wb') as log:
             child=subprocess.Popen([str(binary),'-m',str(paths[0]),'-a',profile_name,'--host','127.0.0.1','--port',str(port),
                 '--no-webui','--no-mmproj','--cache-ram','0','--load-mode','mmap','--fit','off','--no-repack',
-                '-c','2048','-b','64','-ub','32','-t','4','-np','1','-ngl','0'],
+                '-c',str(context),'-b','64','-ub','32','-t','4','-np','1','-ngl','0'],
                 env=env,stdin=subprocess.DEVNULL,stdout=log,stderr=subprocess.STDOUT)
             phase='readiness'
             load_start=time.monotonic()
@@ -262,8 +279,12 @@ def main(argv=None):
     parser.add_argument('--execute',action='store_true')
     args=parser.parse_args(argv)
     if not args.execute:
+        profile=PROFILES[args.profile]
+        context,maximum=runtime_limits(profile)
         print(json.dumps(dict(dry_run=True,profile=args.profile,model_inference=False,
-                             weights_downloaded=False,llama_cpp_commit=LLAMA_COMMIT)))
+                             weights_downloaded=False,llama_cpp_commit=LLAMA_COMMIT,
+                             context=context,max_output_tokens=maximum,
+                             reasoning_settings_requested=dict(profile['template']))))
         return 0
     if any(value is None for value in (args.binary,args.weights_dir,args.output)):
         parser.error('--execute requires --binary, --weights-dir and --output')
