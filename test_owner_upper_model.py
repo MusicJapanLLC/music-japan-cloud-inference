@@ -126,6 +126,18 @@ class OwnerUpperModelTests(unittest.TestCase):
                 model.generate('mj-flash-next', 'third call forbidden')
         self.assertEqual(run.call_count, 2)
 
+    def test_registered_renderer_only_accepts_its_own_target(self):
+        model = self.model(task_id='redline-analysis-html-report')
+        renderer = json.dumps({'edits': [{'path': 'render_analysis.py', 'content': '# proposal only\n'}]})
+        with mock.patch.object(bridge.subprocess, 'run',
+                side_effect=self.fake_client(lambda data: data.update(final_content=renderer))):
+            self.assertEqual(model.generate('mj-flash-next', 'public renderer task'), renderer)
+        with mock.patch.object(bridge.subprocess, 'run', side_effect=self.fake_client()), self.assertRaises(ValueError):
+            model.generate('mj-flash-next', 'wrong task target')
+        with mock.patch.object(bridge.subprocess, 'run') as run, self.assertRaises(ValueError):
+            self.model(task_id='../unregistered')
+        run.assert_not_called()
+
     def test_client_pin_profile_effort_and_input_bounds_fail_before_subprocess(self):
         with self.assertRaises(ValueError):
             bridge.OwnerUpperModel(self.client, self.root / 'evidence')

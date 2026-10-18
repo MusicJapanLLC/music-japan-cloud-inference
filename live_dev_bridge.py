@@ -24,7 +24,8 @@ import verified_dev_agent as v
 
 MODEL = 'qwen3.8-27b-public'
 REPOSITORY = 'MusicJapanLLC/music-japan-cloud-inference'
-TASKS = {'sliding-window-retry-budget': 'samples/sliding-window/task.json'}
+TASKS = {'sliding-window-retry-budget': 'samples/sliding-window/task.json',
+         'redline-analysis-html-report': 'samples/redline-html-report/task.json'}
 REQUEST_SCHEMA = 'mj.public-dev-check-request/1.0'
 RESULT_SCHEMA = 'mj.public-dev-check-result/1.0'
 MAX_WIRE_BYTES = 256_000
@@ -208,7 +209,7 @@ class OwnerUpperModel:
     reads it, accepts an endpoint URL, or forwards credentials into CI.
     """
     def __init__(self, client: Path, evidence: Path, *, model='mj-flash-next',
-                 effort='xhigh', max_tokens=4096):
+                 effort='xhigh', max_tokens=4096, task_id='sliding-window-retry-budget'):
         expected = Path(os.environ.get('LOCALAPPDATA', '')) / 'MusicJapan/FrontierRuntime/upper_client.py'
         if (not isinstance(client, Path) or not client.is_file() or client.is_symlink()
                 or client.resolve() != expected.resolve()):
@@ -219,6 +220,12 @@ class OwnerUpperModel:
             raise ValueError('UPPER_MODEL_OR_EFFORT_NOT_APPROVED')
         if type(max_tokens) is not int or not 128 <= max_tokens <= 4096:
             raise ValueError('UPPER_TOKEN_BUDGET_INVALID')
+        if task_id not in TASKS:
+            raise ValueError('UPPER_REGISTERED_PUBLIC_TASK_REQUIRED')
+        task = v.load_task(Path(__file__).resolve().parent / TASKS[task_id])
+        if task.task_id != task_id:
+            raise ValueError('UPPER_TASK_ID_MISMATCH')
+        self.targets = task.targets
         if evidence.is_symlink() or evidence.exists() and any(evidence.iterdir()):
             raise ValueError('FRESH_UPPER_EVIDENCE_DIRECTORY_REQUIRED')
         self.model, self.effort, self.max_tokens, self.evidence = model, effort, max_tokens, evidence
@@ -277,7 +284,7 @@ class OwnerUpperModel:
         if not isinstance(parsed, dict):
             raise ValueError('UPPER_STRICT_JSON_REQUIRED')
         # Validate the bounded replacements without changing the model's answer.
-        v.parse_edits(text, ('retry_budget.py',))
+        v.parse_edits(text, self.targets)
         return text
 
     def generate(self, model_name: str, prompt: str) -> str:
@@ -427,7 +434,8 @@ def main(argv=None) -> int:
     task = v.load_task(root / TASKS[args.task_id])
     runner = GitHubRunner(root, task, args.branch, public=True)
     if args.model in UPPER_PROFILES:
-        model = OwnerUpperModel(args.client, args.output, model=args.model, effort=args.effort or 'xhigh')
+        model = OwnerUpperModel(args.client, args.output, model=args.model,
+                                effort=args.effort or 'xhigh', task_id=args.task_id)
     else:
         model = FrontierModel(args.client, args.output, args.captured_response, args.captured_prompt)
     record, edits = v.execute(task, model, runner, [args.model], args.attempts)
