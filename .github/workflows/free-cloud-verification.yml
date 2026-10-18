@@ -1,0 +1,111 @@
+name: Free public model verification
+
+on:
+  push:
+    branches: [fix/1650b-cloud-gb300-20261019]
+    paths:
+      - 'free_cloud_inference.py'
+      - 'test_free_cloud_inference.py'
+      - '.github/workflows/free-cloud-verification.yml'
+  pull_request:
+    paths:
+      - 'free_cloud_inference.py'
+      - 'test_free_cloud_inference.py'
+      - '.github/workflows/free-cloud-verification.yml'
+  workflow_dispatch:
+    inputs:
+      run_free_check:
+        description: 'Run one public synthetic request per selected free model'
+        type: boolean
+        required: true
+        default: false
+      model:
+        description: 'Public model to verify'
+        type: choice
+        required: true
+        default: all
+        options: [all, qwen-flash-next, deepseek-flash-0731]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: free-public-model-check-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  offline-contract:
+    if: ${{ github.event.repository.private == false }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Test model identity, new challenge, receipt and zero-spend boundaries
+        run: python3 -m unittest -v test_free_cloud_inference.py
+      - name: Confirm both clients are non-executing by default
+        run: |
+          python3 free_cloud_inference.py --model qwen-flash-next
+          python3 free_cloud_inference.py --model deepseek-flash-0731
+
+  live-free-verification:
+    needs: offline-contract
+    if: >-
+      ${{ github.event.repository.private == false && github.run_attempt == 1 &&
+          ((github.event_name == 'push' && contains(github.event.head_commit.message, '[run-free-model-check]')) ||
+           (github.event_name == 'workflow_dispatch' && inputs.run_free_check)) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Send one fresh public challenge per explicitly selected model
+        env:
+          SELECTED_FREE_MODEL: ${{ inputs.model || 'all' }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess, sys
+          from pathlib import Path
+          models = ('qwen-flash-next', 'deepseek-flash-0731')
+          selected = os.environ['SELECTED_FREE_MODEL']
+          if selected not in ('all', *models):
+              raise SystemExit('UNAPPROVED_MODEL_SELECTION')
+          failures = []
+          for model in models:
+              if selected != 'all' and selected != model:
+                  continue
+              destination = Path('free-result-' + model + '.json')
+              try:
+                  result = subprocess.run(
+                      [sys.executable, 'free_cloud_inference.py', '--execute', '--public',
+                       '--verify', '--model', model, '--receipt', str(destination)],
+                      capture_output=True, text=True, timeout=165, check=False)
+                  exit_code = result.returncode
+              except subprocess.TimeoutExpired:
+                  exit_code = 124
+              if destination.is_file():
+                  receipt = json.loads(destination.read_text(encoding='utf-8'))
+                  print('MJ_FREE_RECEIPT ' + json.dumps(receipt, ensure_ascii=False, sort_keys=True), flush=True)
+              else:
+                  receipt = {'status': 'receipt_missing', 'model': model, 'inference_verified': False}
+                  print('MJ_FREE_RECEIPT ' + json.dumps(receipt), flush=True)
+              verified = (
+                  exit_code == 0
+                  and receipt.get('status') == 'GENERATED_AND_GRADED'
+                  and receipt.get('grade', {}).get('passed') is True
+                  and receipt.get('selected_model') == model
+                  and receipt.get('inference_requests_attempted') == 1
+              )
+              with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as out:
+                  out.write('## ' + model + '\n\n')
+                  out.write('Exit code: ' + str(exit_code) + '\n\n')
+                  out.write('Verified fresh generation: ' + str(verified) + '\n\n')
+                  out.write('Full public request, response and grade: MJ_FREE_RECEIPT in this job log\n\n')
+                  out.write('Provider-reported model only; full weight bytes were not attested\n\n')
+              if not verified:
+                  failures.append(model)
+          if failures:
+              raise SystemExit('FREE_VERIFICATION_FAILED: ' + ', '.join(failures))
+          PY

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One explicit, bounded request to DeepSeek; the default plan is entirely offline."""
+"""Public model metadata audit; paid inference is disabled by the free-only policy."""
 from __future__ import annotations
 
 import argparse
@@ -340,16 +340,16 @@ def plan():
             'target_model': MODEL, 'target_revision': REVISION, 'api_model': API_MODEL,
             'endpoint': 'https://' + API_HOST + API_PATH, 'mapping_source': SOURCE_URL,
             'mapping_checked': False, 'weight_revision_attested': False,
-            'required': ['--execute', '--public', '--allow-charge', '--prompt-file', '--receipt',
-                         'DEEPSEEK_API_KEY or --api-key-file', '--max-input-bytes (128..16384)',
-                         '--max-output-tokens (1..1024)', '--timeout-seconds (1..120)', '--max-cost-usd (>0, <=1)'],
-            'max_inference_requests': 1, 'client_retry': False, 'client_fallback': False, 'client_cache': False,
+            'execution_policy': 'free_only', 'paid_inference_enabled': False,
+            'execute_error_code': 'PAID_INFERENCE_DISABLED_BY_FREE_ONLY_POLICY',
+            'max_inference_requests': 0, 'client_retry': False, 'client_fallback': False, 'client_cache': False,
             'provider_enforced_dollar_cap': False}
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--execute', action='store_true')
+    parser.add_argument('--execute', action='store_true',
+                        help='Legacy option; always blocked by the free-only policy')
     parser.add_argument('--public', action='store_true')
     parser.add_argument('--allow-charge', action='store_true')
     for name in ('prompt-file', 'receipt', 'api-key-file', 'max-cost-usd'):
@@ -360,6 +360,9 @@ def main(argv=None):
     if not args.execute:
         print(json.dumps(plan(), ensure_ascii=False, indent=2)); return 0
     try:
+        # Preserve legacy parsers and isolated contract tests, but the CLI must not
+        # read inputs/credentials, create receipts or contact a paid provider.
+        raise CloudError('PAID_INFERENCE_DISABLED_BY_FREE_ONLY_POLICY')
         if not args.public or not args.allow_charge or not args.prompt_file or not args.receipt:
             raise CloudError('EXPLICIT_EXECUTION_GUARDS_REQUIRED')
         with open(args.prompt_file, 'rb') as handle:

@@ -61,6 +61,32 @@ class CloudTests(unittest.TestCase):
             self.assertEqual(cloud.main(['--api-key-file', '/missing']), 0)
         self.assertEqual(json.loads(output.getvalue())['network_requests'], 0)
 
+    def test_free_only_plan_has_no_paid_execution_instructions(self):
+        result = cloud.plan()
+        self.assertEqual(result['execution_policy'], 'free_only')
+        self.assertFalse(result['paid_inference_enabled'])
+        self.assertEqual(result['max_inference_requests'], 0)
+        self.assertNotIn('required', result)
+
+    def test_legacy_execute_is_blocked_before_any_input_auth_receipt_or_network(self):
+        legacy_args = ['--execute', '--public', '--allow-charge',
+                       '--prompt-file', '/unused/public-prompt.txt', '--receipt', '/unused/receipt.json',
+                       '--api-key-file', '/unused/key', '--max-input-bytes', '1024',
+                       '--max-output-tokens', '128', '--timeout-seconds', '120', '--max-cost-usd', '0.01']
+        for args in (['--execute'], legacy_args):
+            with self.subTest(args=args), \
+                 patch('builtins.open', side_effect=AssertionError('file read')), \
+                 patch.object(cloud.os, 'open', side_effect=AssertionError('receipt write')), \
+                 patch.object(cloud, 'read_key', side_effect=AssertionError('secret read')), \
+                 patch.object(cloud, 'FixedHTTPS', side_effect=AssertionError('network')), \
+                 patch.object(cloud, 'execute_once', side_effect=AssertionError('provider execution')), \
+                 contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(cloud.main(args), 2)
+            result = json.loads(output.getvalue())
+            self.assertEqual(result['status'], 'blocked')
+            self.assertEqual(result['error_code'], 'PAID_INFERENCE_DISABLED_BY_FREE_ONLY_POLICY')
+            self.assertFalse(result['inference_verified'])
+
     def test_explicit_public_charge_and_budget_guards(self):
         for options in ({'public': False}, {'allow_charge': False}, {'max_cost_usd': '0.00001'},
                         {'max_cost_usd': 'NaN'}, {'max_output_tokens': None},

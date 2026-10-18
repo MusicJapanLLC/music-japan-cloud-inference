@@ -13,6 +13,8 @@ An owner-operated runtime integration for **DeepSeek-V4-Pro-0813**, the publishe
 
 The actual 892.744 GB weight bytes have **not** been downloaded or executed during this work. Six smaller config/tokenizer/index/license assets totaling 18,022,774 bytes were downloaded from the exact publisher revision and their actual bytes were independently hashed. That is distinct from verifying all model weight bytes.
 
+The current execution policy is **free only**. The paid DeepSeek API workflow and its approval input have been withdrawn, and the `trillion_cloud.py` CLI blocks `--execute` before reading credentials or using the network. The remaining cloud job checks public model metadata only; it does not perform inference. See [CLOUD.md](CLOUD.md). Any free run of a different, smaller model is evidence for that named model only and does not complete the 1650B target.
+
 ## Implemented
 
 ### Explicit native launch profiles
