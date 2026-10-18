@@ -37,13 +37,11 @@ jobs:
           python3 frontier_registry.py --out "$RUNNER_TEMP/registry-offline.json"
           python3 frontier_registry.py --verify "$RUNNER_TEMP/registry-offline.json"
       - name: Read-only latest frontier official model public catalog
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.online_public_catalog == true }}
         run: |
           set -euo pipefail
           python3 frontier_registry.py --online --out "$RUNNER_TEMP/frontier-receipt.json"
           python3 frontier_registry.py --verify "$RUNNER_TEMP/frontier-receipt.json"
       - name: Save public model metadata (no personal information)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.online_public_catalog == true }}
         uses: actions/upload-artifact@v4
         with:
           name: official-frontier-catalog
