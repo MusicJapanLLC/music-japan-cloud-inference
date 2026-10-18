@@ -1,0 +1,68 @@
+name: Music Japan Adaptive Frontier — 120B + 122B + 397B True Answers
+on:
+  push:
+    branches: [feature/mj-frontier-quorum-20261018]
+    paths:
+      - '.github/workflows/horizon-adaptive-complete.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  combine-three-authentic-public-weights:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Regression and SHA provenance
+        run: |
+          set -euo pipefail
+          python3 -m unittest -q test_horizon_adaptive.py test_horizon_quorum.py
+      - name: Get independently executed actual 120B + 122B + 397B public weight receipts
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GH_REPO" == 'MusicJapanLLC/music-japan-cloud-inference' ]] || exit 2
+          mkdir -p "$RUNNER_TEMP/oss120" "$RUNNER_TEMP/qwen122" "$RUNNER_TEMP/frontier397"
+          gh run download 39104472325 -R "$GH_REPO" --name horizon-oss120-proof --dir "$RUNNER_TEMP/oss120"
+          gh run download 39104472325 -R "$GH_REPO" --name horizon-qwen122-proof --dir "$RUNNER_TEMP/qwen122"
+          gh run download 39103992998 -R "$GH_REPO" --name true-beyond120-frontier-397b-iq1s-evidence --dir "$RUNNER_TEMP/frontier397"
+          test -s "$RUNNER_TEMP/oss120/horizon-oss120.json"
+          test -s "$RUNNER_TEMP/qwen122/horizon-qwen122.json"
+          test -s "$RUNNER_TEMP/frontier397/real-beyond120.json"
+      - name: Fuse real different 120B + 122B + 397B answers by independent verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 horizon_adaptive.py \
+            --oss120 "$RUNNER_TEMP/oss120/horizon-oss120.json" \
+            --qwen122 "$RUNNER_TEMP/qwen122/horizon-qwen122.json" \
+            --frontier397 "$RUNNER_TEMP/frontier397/real-beyond120.json" \
+            --question 'Compute ((72 / 8) + 17) times 6. Reply only with the integer.' \
+            --min-workers 3 --out "$RUNNER_TEMP/three-frontier-answer.json"
+      - name: Print evidence-bound final answer in GitHub run summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import html,json,os
+          record=json.loads((Path(os.environ['RUNNER_TEMP'])/'three-frontier-answer.json').read_text('utf8'))
+          with Path(os.environ['GITHUB_STEP_SUMMARY']).open('a',encoding='utf8') as fp:
+            fp.write('## Music Japan Frontier: real original open weights\n\n')
+            fp.write('**Models:** '+', '.join(record['model_profiles'])+'\n\n')
+            fp.write('**Worker count:** '+str(record['actual_completed_worker_count'])+'\n\n')
+            fp.write('**Evidence classification:** '+html.escape(record['confidence'])+'\n\n')
+            fp.write('### Actual answer\n\n<pre>'+html.escape(record['model_final_answer'])+'</pre>\n')
+            fp.write('\n*Each worker used independently published original open weights; no vendor model inference credits.*\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-three-frontier-120b-122b-397b
+          path: ${{ runner.temp }}/three-frontier-answer.json
+          retention-days: 7
+          if-no-files-found: error
