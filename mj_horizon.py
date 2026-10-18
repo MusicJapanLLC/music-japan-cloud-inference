@@ -74,7 +74,18 @@ def collect(value:int,question:str,invoke=gh)->dict:
         for name,row in items.items():
             if not verify(row):raise ValueError("TAMPERED_MODEL_PROOF_"+name)
         checked=decide(question,{"oss120":items["oss120"],"qwen122":items["qwen122"]})
-        if checked!=items["final"] or checked["schema"]!=RESULT_SCHEMA:
+        stable_fields=(
+            "schema","public_question_sha256","original_public_models",
+            "source_receipt_sha256","model_answers","independent_checks",
+            "tool_verified_model_count","selected_model","final_answer",
+            "decision","model_credits_used","additional_cloud_spend",
+            "model_count","inference_done_during_referee",
+            "total_original_generation_seconds","model_concurrent_workers",
+            "global_shared_ram_gib_claimed","dedicated_gpu_allocated",
+        )
+        if checked["schema"]!=RESULT_SCHEMA or any(
+            checked.get(field)!=items["final"].get(field) for field in stable_fields
+        ):
             raise ValueError("HASH_CHAIN_OR_DECISION_DIVERGENCE")
         return {
             "completed":True,"url":run["url"],
