@@ -294,7 +294,9 @@ class OwnerUpperModel:
         try:
             with tempfile.TemporaryDirectory(prefix='mj-public-upper-client-') as folder:
                 prompt_path, receipt_path = Path(folder) / 'public-prompt.txt', Path(folder) / 'client-receipt.json'
-                prompt_path.write_text(prompt, encoding='utf-8')
+                # The client hashes raw UTF-8 bytes; Windows text-mode newline
+                # conversion would make every multiline receipt fail validation.
+                prompt_path.write_bytes(prompt.encode('utf-8'))
                 done = subprocess.run([sys.executable, str(self.client), '--model', self.model,
                     '--public', '--prompt-file', str(prompt_path), '--response-format', 'json_object',
                     '--effort', self.effort, '--max-tokens', str(self.max_tokens), '--out', str(receipt_path)],

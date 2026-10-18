@@ -31,7 +31,7 @@ class OwnerUpperModelTests(unittest.TestCase):
             return bridge.OwnerUpperModel(self.client, self.root / 'evidence', **kwargs)
 
     def receipt(self, argv):
-        prompt = Path(argv[argv.index('--prompt-file') + 1]).read_text(encoding='utf-8')
+        prompt = Path(argv[argv.index('--prompt-file') + 1]).read_bytes().decode('utf-8-sig')
         model = argv[argv.index('--model') + 1]
         profile = bridge.UPPER_PROFILES[model]
         return {'schema': 'mj.upper-client.receipt/1.0',
@@ -77,6 +77,20 @@ class OwnerUpperModelTests(unittest.TestCase):
         self.assertFalse(capture['independent_quality_verification'])
         self.assertNotIn('ignored untrusted', json.dumps(capture))
         self.assertEqual(model.calls[0]['status'], 'complete')
+
+    def test_multiline_unicode_prompt_keeps_exact_wire_bytes(self):
+        model = self.model()
+        prompt = 'Public example\nUnicode: 日本語\r\nExisting CRLF stays intact\n'
+        fake = self.fake_client()
+        def run(argv, **kwargs):
+            raw = Path(argv[argv.index('--prompt-file') + 1]).read_bytes()
+            self.assertEqual(raw, prompt.encode('utf-8'))
+            return fake(argv, **kwargs)
+        with mock.patch.object(bridge.subprocess, 'run', side_effect=run):
+            model.generate('mj-flash-next', prompt)
+        capture = json.loads((self.root / 'evidence/generation-1.json').read_text())
+        self.assertEqual(capture['client_receipt']['prompt_sha256'],
+                         hashlib.sha256(prompt.encode('utf-8')).hexdigest())
 
     def test_substitution_paid_unknown_fields_hash_and_truncation_rejected(self):
         changes = [('actual_model', 'fake-astra'), ('paid_fallback', True),
