@@ -13,7 +13,7 @@ from unittest.mock import Mock, patch
 import free_cloud_inference as f
 
 
-MODEL = "qwen-flash-next"
+MODEL = "deepseek-flash-0731"
 ID = f.MODELS[MODEL]["id"]
 
 

@@ -23,7 +23,7 @@ on:
         description: 'Public model to verify'
         type: choice
         required: true
-        default: all
+        default: deepseek-flash-0731
         options: [all, qwen-flash-next, deepseek-flash-0731]
 
 permissions:
@@ -63,7 +63,7 @@ jobs:
           persist-credentials: false
       - name: Send one fresh public challenge per explicitly selected model
         env:
-          SELECTED_FREE_MODEL: ${{ inputs.model || 'all' }}
+          SELECTED_FREE_MODEL: ${{ inputs.model || 'deepseek-flash-0731' }}
         run: |
           python3 - <<'PY'
           import json, os, subprocess, sys

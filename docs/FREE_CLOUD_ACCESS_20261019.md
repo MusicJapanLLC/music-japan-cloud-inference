@@ -4,6 +4,8 @@
 
 **追加支払いをせず、既存の公開モデルをPCに依存せず呼び出すための手順です**
 
+今回の実検証で **DeepSeek-V4-Flash-0731が新しい返答を生成し、全採点項目に合格** しました。これをCLIと手動workflowの既定モデルにしています。Qwenは今回149.014秒で期限に達したため、明示選択する検証候補として残します。
+
 利用条件は無料のみです。有料API、チャージ、カード登録による有料枠、有料GPUへの切替はこの手順に含めません。匿名APIで試す2モデルは明示的に選択し、失敗しても別モデルへ自動で切り替えません。
 
 ## 利用できる経路と確認範囲
@@ -85,7 +87,7 @@ python3 free_cloud_inference.py \
 | 入力 | UTF-8で最大8,192 bytes |
 | 出力 | 最大384 tokens。`--max-tokens`で下げることは可能 |
 | 成功する終了条件 | 完全なSSE、`finish_reason=stop`、非空の最終回答、固定モデルIDの一致 |
-| usage | 返された場合、非負の整数とprompt＋completion＝totalを検査 |
+| usage | 返された場合、非負の整数、prompt＋completion＝total、要求した出力上限以下を検査。欠落時はtoken数未観測と記録 |
 | 失敗 | 自動再試行、自動fallback、有料経路への変更なし |
 | レシート | 成功・採点不合格・接続エラー等を保存。部分回答が取得できた場合も、失敗を成功に変えず保持 |
 
@@ -118,7 +120,24 @@ GitHub公式の料金説明では、公開リポジトリの標準GitHub-hosted 
 
 workflowの定義がブランチにあることと、GitHubで手動起動可能な状態になっていることは別です。画面/APIからの起動可否はGitHub側のworkflow登録状態も確認してください。
 
-**今回追加したworkflowの実推論は、この案内の作成時点では結果待ちです。実行結果はworkflowログの`MJ_FREE_RECEIPT`と`grade`で確認してください。**
+### 今回の実行結果
+
+[GitHub run 39149559603](https://github.com/MusicJapanLLC/music-japan-cloud-inference/actions/runs/39149559603)、[実推論job](https://github.com/MusicJapanLLC/music-japan-cloud-inference/actions/runs/39149559603/job/117740252942)、commit `4d39dff5c02ca6c754c31a43403c3a2320204fcd` で確認しました。
+
+| 選択モデル | 実結果 | 経過秒 | 新規返答の採点 |
+| --- | --- | ---: | --- |
+| DeepSeek-V4-Flash-0731 | `GENERATED_AND_GRADED` | 70.458 | nonce転記、508×551=279908、orbitの反転、JSON形状の全項目が合格 |
+| Qwen3.8-Flash-Next | `FAILED / DEADLINE` | 149.014 | 最終回答を取得できず、採点なし |
+
+DeepSeekの実返答：
+
+```json
+{"nonce":"1af33589a4209e06","product":279908,"reverse":"tibro"}
+```
+
+DeepSeekはcatalog GET 1回、生成POST 1回、`finish_reason=stop`、提供元usageは入力57・出力138・合計195 tokensでした。Qwenは子プロセスの期限終了により要求の到達段階も不明なので、要求回数を推定せず`null`としています。**全体jobはQwenの失敗を正しく反映してfailureです。DeepSeekの個別成功を全体成功へ読み替えません。**
+
+成功・失敗の公開要求とレシートは[保存した実行記録](../evidence/free-cloud-verification-39149559603.json)でも読めます。単一の合成課題による疎通・応答確認であり、一般能力や1650Bとの同等性能の比較ではありません。
 
 合成課題の合格では、少なくとも以下を照合します。
 

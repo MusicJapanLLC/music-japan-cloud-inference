@@ -413,7 +413,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--public", action="store_true")
-    parser.add_argument("--model", choices=tuple(MODELS), default="qwen-flash-next")
+    parser.add_argument("--model", choices=tuple(MODELS), default="deepseek-flash-0731")
     source = parser.add_mutually_exclusive_group()
     source.add_argument("--verify", action="store_true", help="Create one fresh synthetic arithmetic/nonce challenge")
     source.add_argument("--prompt-file", type=Path)
