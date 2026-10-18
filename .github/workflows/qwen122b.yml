@@ -1,0 +1,66 @@
+name: Music Japan Open Frontier Qwen3.5 122B-A10B real GGUF
+on:
+  push:
+    branches: [feature/mj-frontier-research-factory-20261018]
+    paths: ['.github/workflows/qwen122b.yml']
+  workflow_dispatch:
+    inputs:
+      execute_real:
+        type: boolean
+        default: false
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: mj-qwen122b-real-once-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  integrity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Test strict three-shard identity and no-paid-credit contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest -q test_experimental_qwen122b.py
+          python3 experimental_qwen122b.py --binary unused --weights-dir "$RUNNER_TEMP/weights" --out "$RUNNER_TEMP/proof.json"
+
+  inference:
+    name: Genuine Qwen3.5-122B-A10B MoE inference on free cloud CPU
+    needs: integrity
+    if: ${{ github.event_name == 'push' || inputs.execute_real == true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 52
+    env:
+      HF_HUB_DISABLE_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Measure public Linux CPU runner (no GPU or purchased services)
+        run: python3 cloud_probe.py
+      - name: Build official portable inference engine from source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth 1 https://github.com/ggml-org/llama.cpp.git "$RUNNER_TEMP/llama.cpp"
+          cmake -S "$RUNNER_TEMP/llama.cpp" -B "$RUNNER_TEMP/llama.cpp/build" -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DGGML_CUDA=OFF -DLLAMA_CURL=OFF
+          cmake --build "$RUNNER_TEMP/llama.cpp/build" --config Release --target llama-server -j 4
+      - name: Download three complete pinned 122B shards and answer with real local inference
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 experimental_qwen122b.py --execute \
+            --binary "$RUNNER_TEMP/llama.cpp/build/bin/llama-server" \
+            --weights-dir "$RUNNER_TEMP/qwen122-weights" \
+            --out "$RUNNER_TEMP/qwen122-proof.json"
+      - name: Save model identity and real reply evidence, not weights
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: mj-public-qwen122-genuine-inference-proof
+          path: ${{ runner.temp }}/qwen122-proof.json
+          retention-days: 2
+          if-no-files-found: ignore
