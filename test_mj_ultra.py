@@ -116,7 +116,7 @@ class UltraControlTests(unittest.TestCase):
         f=fixtures()
         f["final"]["actual_local_120b_inference"]=False
         f["final"]=signed_record(f["final"])
-        with self.assertRaisesRegex(ValueError,"PROOF_MISMATCH"):
+        with self.assertRaisesRegex(ValueError,"ACTUAL_120B_INFERENCE_NOT_VERIFIED"):
             u.prove("max",QUESTION,f)
     def test_tampered_chain_rejected(self):
         f=fixtures()
