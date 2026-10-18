@@ -1,0 +1,74 @@
+name: Music Japan real LLM API compatibility — OpenAI Anthropic Responses
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/api-compat-acceptance.yml'
+      - 'cloud_api_acceptance.py'
+      - 'test_cloud_api_acceptance.py'
+  workflow_dispatch:
+    inputs:
+      run_real_model:
+        description: 'Run actual public reconstructed Qwable 9B, never proprietary APIs'
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mj-api-compat-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  contract-validation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Test local-only provider format parsers and no-credit guard
+        run: |
+          set -euo pipefail
+          python3 -m unittest -q test_cloud_api_acceptance.py test_cloud_infer_frontier.py
+          python3 cloud_api_acceptance.py --binary unused --weights-dir "$RUNNER_TEMP/weights" --out "$RUNNER_TEMP/receipt.json"
+
+  real-api-acceptance:
+    needs: contract-validation
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_real_model == true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify actual free Linux VM
+        run: python3 cloud_probe.py
+      - name: Compile llama.cpp for local CPU-bound API serving
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth 1 https://github.com/ggml-org/llama.cpp.git "$RUNNER_TEMP/llama.cpp"
+          cmake -S "$RUNNER_TEMP/llama.cpp" -B "$RUNNER_TEMP/llama.cpp/build" -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DGGML_CUDA=OFF -DLLAMA_CURL=OFF
+          cmake --build "$RUNNER_TEMP/llama.cpp/build" --config Release --target llama-server -j 4
+      - name: Run actual pinned public Qwable model over three localhost APIs
+        shell: bash
+        env:
+          HF_HUB_DISABLE_TELEMETRY: '1'
+        run: |
+          set -euo pipefail
+          python3 cloud_api_acceptance.py --execute \
+            --binary "$RUNNER_TEMP/llama.cpp/build/bin/llama-server" \
+            --weights-dir "$RUNNER_TEMP/weights" \
+            --out "$RUNNER_TEMP/acceptance.json"
+      - name: Preserve evidence without weights or credentials
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-reconstruction-live-api-acceptance
+          path: ${{ runner.temp }}/acceptance.json
+          retention-days: 1
+          if-no-files-found: ignore
