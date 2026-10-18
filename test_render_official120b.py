@@ -31,6 +31,40 @@ class Original120BRenderer(unittest.TestCase):
         p=self.read(synthetic())
         self.assertEqual(p["model_id"],model.ID)
         self.assertIn("437",text.render(p))
+    def test_max_mode_proof_is_visible(self):
+        rec=synthetic()
+        rec.update({"research_mode":"max",
+                    "draft_proposal_receipt_sha256":"a"*64,
+                    "external_open_model_proposal_applied":True,
+                    "requested_tokens_each_round":384,"rounds":1})
+        rec=signed_record(rec)
+        value=self.read(rec)
+        report=text.render(value)
+        self.assertIn("max",report)
+        self.assertIn("Cross-model 20B proposal verified",report)
+
+    def test_ultra_requires_two_real_120b_rounds(self):
+        rec=synthetic()
+        rec.update({"research_mode":"ultra",
+                    "draft_proposal_receipt_sha256":"a"*64,
+                    "external_open_model_proposal_applied":True,
+                    "requested_tokens_each_round":512,"rounds":1})
+        with self.assertRaisesRegex(ValueError,"COMPUTE_POLICY"):
+            self.read(signed_record(rec))
+
+    def test_unsupported_mode_and_forged_source_blocked(self):
+        rec=synthetic()
+        rec["research_mode"]="astra-gpt6-private"
+        with self.assertRaisesRegex(ValueError,"PRESET"):
+            self.read(signed_record(rec))
+        rec=synthetic()
+        rec.update({"research_mode":"max","rounds":1,
+                    "requested_tokens_each_round":384,
+                    "draft_proposal_receipt_sha256":"not-a-hash",
+                    "external_open_model_proposal_applied":True})
+        with self.assertRaisesRegex(ValueError,"MULTI_MODEL_PROVENANCE"):
+            self.read(signed_record(rec))
+
     def test_attacker_html_escaped(self):
         report=text.render(synthetic("<script>alert(1)</script>"))
         self.assertIn("&lt;script&gt;",report)
