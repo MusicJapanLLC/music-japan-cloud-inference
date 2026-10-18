@@ -36,6 +36,8 @@
 クリーンなこのリポジトリの作業コピーで、既存の git 認証が使える PC から実行する
 
 ```powershell
+git clone --config core.autocrlf=false https://github.com/MusicJapanLLC/music-japan-cloud-inference.git mj-public-dev
+cd mj-public-dev
 $run = 'runs/vda/' + (Get-Date -Format 'yyyyMMdd-HHmmss')
 git switch -c $run
 python live_dev_bridge.py --execute --public --client "$env:LOCALAPPDATA\MusicJapan\FrontierRuntime\frontier_client.py" --branch $run --attempts 2 --output "evidence/$($run.Replace('/','-'))"
