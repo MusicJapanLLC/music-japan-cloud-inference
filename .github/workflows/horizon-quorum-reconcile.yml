@@ -1,0 +1,127 @@
+name: Music Japan 4-Model Horizon — verified frontier quorum
+on:
+  push:
+    branches: [feature/mj-frontier-quorum-20261018]
+    paths:
+      - '.github/workflows/horizon-quorum-reconcile.yml'
+      - 'horizon_quorum.py'
+      - 'test_horizon_quorum.py'
+  workflow_dispatch:
+    inputs:
+      horizon_run:
+        description: 'Run ID with real gpt-oss 120B and Qwen 122B receipts'
+        type: string
+        required: true
+        default: '39104472325'
+      beyond_run:
+        description: 'Run ID with optional real 235B / 397B receipts'
+        type: string
+        required: true
+        default: '39103992998'
+      question:
+        description: 'PUBLIC research question; must be exactly the one used by all models'
+        type: string
+        required: true
+        default: 'Compute ((72 / 8) + 17) times 6. Reply only with the integer.'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  unit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify authentic model and question provenance with synthetic evidence
+        run: |
+          set -euo pipefail
+          python3 -m unittest -q test_horizon_quorum.py test_horizon_federation.py
+  actual-quorum:
+    needs: unit
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      HORIZON_RUN: ${{ inputs.horizon_run }}
+      BEYOND_RUN: ${{ inputs.beyond_run }}
+      PUBLIC_QUESTION: ${{ inputs.question }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Poll exact successful owner-run outputs with bounded wait
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$HORIZON_RUN" =~ ^[0-9]{7,15}$ ]] || exit 2
+          [[ "$BEYOND_RUN" =~ ^[0-9]{7,15}$ ]] || exit 2
+          for attempt in $(seq 1 30); do
+            state=$(gh api "repos/$GH_REPO/actions/runs/$HORIZON_RUN" --jq .status)
+            if [[ "$state" == 'completed' ]]; then
+              result=$(gh api "repos/$GH_REPO/actions/runs/$HORIZON_RUN" --jq .conclusion)
+              echo "HORIZON_RUN_STATE=$state CONCLUSION=$result"
+              [[ "$result" == 'success' ]] || exit 2
+              break
+            fi
+            if [[ "$attempt" == 30 ]]; then echo 'HORIZON_INFERENCE_RUN_EXCEEDED_WAIT'; exit 2; fi
+            sleep 40
+          done
+      - name: Download signed 120B and 122B model receipts from the completed run
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/oss120" "$RUNNER_TEMP/qwen122"
+          gh run download "$HORIZON_RUN" -R "$GH_REPO" --name horizon-oss120-proof --dir "$RUNNER_TEMP/oss120"
+          gh run download "$HORIZON_RUN" -R "$GH_REPO" --name horizon-qwen122-proof --dir "$RUNNER_TEMP/qwen122"
+      - name: Use real 235B/397B outputs only when independently completed
+        id: optional
+        shell: bash
+        run: |
+          set -euo pipefail
+          state=$(gh api "repos/$GH_REPO/actions/runs/$BEYOND_RUN" --jq .status)
+          result=$(gh api "repos/$GH_REPO/actions/runs/$BEYOND_RUN" --jq .conclusion)
+          if [[ "$state" == 'completed' && "$result" == 'success' ]]; then
+            mkdir -p "$RUNNER_TEMP/thinking235" "$RUNNER_TEMP/frontier397"
+            gh run download "$BEYOND_RUN" -R "$GH_REPO" --name true-beyond120-thinking-235b-iq2m-evidence --dir "$RUNNER_TEMP/thinking235"
+            gh run download "$BEYOND_RUN" -R "$GH_REPO" --name true-beyond120-frontier-397b-iq1s-evidence --dir "$RUNNER_TEMP/frontier397"
+            echo 'OPTIONAL_COMPLETE=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'OPTIONAL_COMPLETE=false' >> "$GITHUB_OUTPUT"
+            echo 'MODEL_235_397_PROOF_NOT_VERIFIED_AT_THIS_TIME'
+          fi
+      - name: Produce one provenance-checked frontier answer
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(--oss120 "$RUNNER_TEMP/oss120/horizon-oss120.json"
+                --qwen122 "$RUNNER_TEMP/qwen122/horizon-qwen122.json"
+                --question "$PUBLIC_QUESTION" --out "$RUNNER_TEMP/quorum.json")
+          if [[ '${{ steps.optional.outputs.OPTIONAL_COMPLETE }}' == true ]]; then
+            args+=(--thinking235 "$RUNNER_TEMP/thinking235/real-beyond120.json"
+                   --frontier397 "$RUNNER_TEMP/frontier397/real-beyond120.json" --require-four)
+          fi
+          python3 horizon_quorum.py "${args[@]}"
+      - name: Show model IDs and result with escaped HTML
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import html,json,os
+          from pathlib import Path
+          proof=json.loads((Path(os.environ['RUNNER_TEMP'])/'quorum.json').read_text('utf8'))
+          with Path(os.environ['GITHUB_STEP_SUMMARY']).open('a',encoding='utf8') as f:
+            f.write('## Music Japan Frontier Quorum — actual original public weights\n')
+            f.write('**Verified model workers:** '+str(proof['model_workers'])+'\n\n')
+            f.write('**Decision:** '+html.escape(proof['decision'])+'\n\n')
+            f.write('**Selected model:** '+html.escape(proof['selected_model'])+'\n\n')
+            f.write('<pre>'+html.escape(proof['final_answer'])+'</pre>\n')
+            f.write('\n*Independent CPU workers, not a single shared-memory GPU or proprietary GPT-6 equivalent.*\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-horizon-frontier-quorum
+          path: ${{ runner.temp }}/quorum.json
+          retention-days: 1
+          if-no-files-found: error
