@@ -46,14 +46,16 @@ def validate(question:str,mode:str,raw_proposal:dict,raw_final:dict)->dict:
         raise ValueError("FINAL_ANSWER_MISSING")
     if not isinstance(raw_final.get("round_proofs"),list) or len(raw_final["round_proofs"])!=preset["final_rounds"]:
         raise ValueError("INFERENCE_ROUNDS_NOT_PROVEN")
-    if not all(x.get("http_status")==200 and bool(x.get("model_answer","").strip())
-               for x in raw_final["round_proofs"] if isinstance(x,dict)):
+    if not all(isinstance(x,dict) and x.get("http_status")==200
+               and isinstance(x.get("model_answer"),str) and bool(x["model_answer"].strip())
+               for x in raw_final["round_proofs"]):
         raise ValueError("INFERENCE_ROUND_RESPONSE_INVALID")
     draft=raw_proposal.get("rounds_evidence",[])
     if not isinstance(draft,list) or len(draft)!=preset["draft_rounds"]:
         raise ValueError("DRAFT_ROUNDS_NOT_PROVEN")
-    if not all(x.get("official_model")=="gpt-oss-20b-MXFP4" and isinstance(x.get("answer"),str) and x["answer"].strip()
-               for x in draft if isinstance(x,dict)):
+    if not all(isinstance(x,dict) and x.get("official_model")=="gpt-oss-20b-MXFP4"
+               and isinstance(x.get("answer"),str) and bool(x["answer"].strip())
+               for x in draft):
         raise ValueError("DRAFT_RESPONSES_NOT_PROVEN")
     detail=raw_final.get("selection",{})
     result=signed_record({
