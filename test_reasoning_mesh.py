@@ -87,6 +87,21 @@ class MeshTests(unittest.TestCase):
         res=mesh.evaluate(a,b,c)
         self.assertEqual(res["change_from_proposal"],12)
         self.assertEqual(res["recommendation"],"MORE_REASONING_HELPED_THIS_EVAL")
+    def test_verified_tool_corrects_model_mistake_separately(self):
+        base=[c["expected"] for c in CHALLENGES]
+        alternate=base.copy()
+        index=next(i for i,c in enumerate(CHALLENGES) if c["id"]=="math_multistep")
+        alternate[index]="114"
+        a=make_receipt("propose",base)
+        b=make_receipt("challenge",upstream=a["sha256"])
+        c=make_receipt("synthesize",alternate,upstream=a["sha256"],challenger=b["sha256"])
+        result=mesh.evaluate(a,b,c)
+        self.assertEqual(result["scores"]["synthesize"],11)
+        self.assertEqual(result["tool_assisted_score"],12)
+        self.assertEqual(result["tool_assisted_extra_vs_model"],1)
+        self.assertTrue(result["model_only_and_tool_assisted_scores_separate"])
+        self.assertEqual(result["tool_results"][index]["source"],"deterministic_tool_correction")
+
     def test_overthinking_can_be_worse(self):
         a=make_receipt("propose")
         b=make_receipt("challenge",upstream=a["sha256"])
