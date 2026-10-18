@@ -1,0 +1,172 @@
+name: Music Japan Reasoning Mesh — multi-model extended thinking
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/reasoning-mesh.yml"
+      - "reasoning_mesh.py"
+      - "test_reasoning_mesh.py"
+  workflow_dispatch:
+    inputs:
+      execute:
+        description: "Actually run staged gpt-oss-high + Fable-derived Qwable review + gpt-oss-high revision on free public Linux"
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mj-reasoning-mesh-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Verify deterministic comparison and zero-credit reasoning contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Static tests and no-network dry run
+        run: |
+          set -euo pipefail
+          python3 -m unittest -q test_reasoning_mesh.py test_cloud_probe.py test_cloud_infer_frontier.py
+          for stage in propose challenge synthesize; do
+            python3 reasoning_mesh.py --stage "$stage"
+          done
+
+  propose:
+    needs: validate
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.execute == true }}
+    name: Stage 1 — gpt-oss 20B high effort proposal
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/prepare-llama
+      - name: High-effort open-model generation, no paid inference
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 reasoning_mesh.py --stage propose --execute \
+            --binary "$RUNNER_TEMP/llama.cpp/build/bin/llama-server" \
+            --weights-dir "$RUNNER_TEMP/weights" \
+            --output "$RUNNER_TEMP/propose.json" \
+            --effort high --tokens 1280 --max-seconds 2400
+      - name: Transfer synthetic outputs, never private prompt or credentials
+        uses: actions/upload-artifact@v4
+        with:
+          name: mesh-propose
+          path: ${{ runner.temp }}/propose.json
+          retention-days: 1
+          if-no-files-found: error
+
+  challenge:
+    needs: propose
+    name: Stage 2 — independent Qwable Fable-inspired critique
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: mesh-propose
+          path: ${{ runner.temp }}/upstream
+      - uses: ./.github/actions/prepare-llama
+      - name: Independent public fine-tune reviewer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 reasoning_mesh.py --stage challenge --execute \
+            --binary "$RUNNER_TEMP/llama.cpp/build/bin/llama-server" \
+            --weights-dir "$RUNNER_TEMP/weights" \
+            --output "$RUNNER_TEMP/challenge.json" \
+            --proposal "$RUNNER_TEMP/upstream/propose.json" \
+            --tokens 512 --max-seconds 2400
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mesh-challenge
+          path: ${{ runner.temp }}/challenge.json
+          retention-days: 1
+          if-no-files-found: error
+
+  synthesize:
+    needs: challenge
+    name: Stage 3 — gpt-oss high effort re-reasoning using two models
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: mesh-propose
+          path: ${{ runner.temp }}/proposer
+      - uses: actions/download-artifact@v4
+        with:
+          name: mesh-challenge
+          path: ${{ runner.temp }}/challenger
+      - uses: ./.github/actions/prepare-llama
+      - name: Long reasoning synthesis and disagreement resolution
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 reasoning_mesh.py --stage synthesize --execute \
+            --binary "$RUNNER_TEMP/llama.cpp/build/bin/llama-server" \
+            --weights-dir "$RUNNER_TEMP/weights" \
+            --output "$RUNNER_TEMP/synthesis.json" \
+            --proposal "$RUNNER_TEMP/proposer/propose.json" \
+            --challenge "$RUNNER_TEMP/challenger/challenge.json" \
+            --effort high --tokens 1280 --max-seconds 2400
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mesh-synthesis
+          path: ${{ runner.temp }}/synthesis.json
+          retention-days: 1
+          if-no-files-found: error
+
+  evaluate:
+    needs: synthesize
+    name: Final — independent evaluation of all inference and actual improvement
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: mesh-propose
+          path: ${{ runner.temp }}/proposer
+      - uses: actions/download-artifact@v4
+        with:
+          name: mesh-challenge
+          path: ${{ runner.temp }}/challenger
+      - uses: actions/download-artifact@v4
+        with:
+          name: mesh-synthesis
+          path: ${{ runner.temp }}/synthesizer
+      - name: Measure effect of extra thinking, no gold answer sent to LLM
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 reasoning_mesh.py --stage evaluate \
+            --proposal "$RUNNER_TEMP/proposer/propose.json" \
+            --challenge "$RUNNER_TEMP/challenger/challenge.json" \
+            --synthesis "$RUNNER_TEMP/synthesizer/synthesis.json" \
+            --output "$RUNNER_TEMP/mesh-evaluation.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mesh-evaluation
+          path: ${{ runner.temp }}/mesh-evaluation.json
+          retention-days: 7
+          if-no-files-found: error
