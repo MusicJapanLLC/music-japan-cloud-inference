@@ -1,0 +1,32 @@
+name: Verify executable development agent
+
+on:
+  push:
+    paths:
+      - "verified_dev_agent.py"
+      - "test_verified_dev_agent.py"
+      - "samples/sliding-window/**"
+      - ".github/workflows/verified-dev-agent.yml"
+  pull_request:
+    paths:
+      - "verified_dev_agent.py"
+      - "test_verified_dev_agent.py"
+      - "samples/sliding-window/**"
+      - ".github/workflows/verified-dev-agent.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify agent protocol, sandbox policy, and repair receipt
+        run: |
+          python3 -m unittest -q test_verified_dev_agent
+          python3 verified_dev_agent.py --task samples/sliding-window/task.json --models local-oss --dry-run
