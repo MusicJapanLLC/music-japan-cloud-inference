@@ -37,3 +37,7 @@ The runner checks that its branch is `runs/vda/*`, the remote is precisely this 
 **Rules:** No customer messages, Music Japan private code, private DB, credentials or proprietary model outputs in public runners or prompts. This is verified **agent-workflow repair capability**; it is not a new 120B+ foundation model, new GPU allocation or proof of GPT-6/Astra/other closed-model parity.
 
 The receipt `sha256` is a reproducible *integrity digest*, not a key-signed cryptographic identity proof.
+
+## Subsequent fresh-inference verification
+
+The preceding section records the earlier replay-only checkpoint. A subsequent execution called the existing FrontierRuntime client after the failing baseline, without replaying a saved answer, and passed both the candidate and fresh final cloud check. See [fresh generation and full receipt](../evidence/live-dev-fresh-20261018/receipt.json) and [Japanese operating notes](LIVE_DEVELOPMENT_AGENT_2026-10-18.md). Sanitized final-answer captures and selected source are now published in `evidence/`; raw provider reasoning and local credentials remain excluded.

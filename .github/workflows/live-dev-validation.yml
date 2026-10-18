@@ -6,12 +6,16 @@ on:
       - 'live_dev_bridge.py'
       - 'test_*dev*.py'
       - '.github/workflows/live-dev*.yml'
+      - 'evidence/live-dev*/**'
+      - 'docs/LIVE*DEV*.md'
   pull_request:
     paths:
       - 'verified_dev_agent.py'
       - 'live_dev_bridge.py'
       - 'test_*dev*.py'
       - '.github/workflows/live-dev*.yml'
+      - 'evidence/live-dev*/**'
+      - 'docs/LIVE*DEV*.md'
 permissions:
   contents: read
 jobs:
