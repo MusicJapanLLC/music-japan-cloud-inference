@@ -1,0 +1,178 @@
+name: Music Japan MAX ULTRA — verified open 20B + 120B reasoning
+on:
+  push:
+    branches: [feature/mj-frontier-research-factory-20261018]
+    paths:
+      - '.github/workflows/max-ultra-reasoning.yml'
+      - 'reasoning_profiles.py'
+      - 'test_reasoning_profiles.py'
+      - 'verify_max_ultra_chain.py'
+      - 'test_verify_max_ultra_chain.py'
+      - 'official120b_chat.py'
+      - 'test_official120b_chat.py'
+      - 'render_official120b.py'
+      - 'test_render_official120b.py'
+  workflow_dispatch:
+    inputs:
+      execute:
+        type: boolean
+        required: true
+        default: false
+        description: 'Run actual official public OpenAI gpt-oss20B and gpt-oss120B; no hosted API credits'
+      mode:
+        type: choice
+        options: ['max', 'ultra']
+        required: true
+        default: 'max'
+      public_question:
+        description: 'PUBLIC research prompt only, never private Music Japan data'
+        type: string
+        required: true
+        default: 'Calculate 314 times 29. Answer only the integer.'
+permissions:
+  contents: read
+concurrency:
+  group: mj-max-ultra-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  unit:
+    name: Provenance and actual thinking budget code tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Validate origin, model identity, budgets and independent verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest -q test_reasoning_profiles.py test_verify_max_ultra_chain.py test_official120b_chat.py test_render_official120b.py test_cloud_owner_chat.py
+          python3 -c 'from reasoning_profiles import profile; print(profile("max")); print(profile("ultra"))'
+          python3 official120b_chat.py --mode ultra --binary unused --weights-dir "$RUNNER_TEMP/weights" --out "$RUNNER_TEMP/report.json"
+
+  draft20:
+    name: Real gpt-oss 20B extended reasoning and critical review
+    needs: unit
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.execute == true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 36
+    env:
+      THINK_MODE: ${{ inputs.mode }}
+      MJ_PUBLIC_RESEARCH_QUESTION: ${{ inputs.public_question }}
+      HF_HUB_DISABLE_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify free public Linux CPU and prepare scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 cloud_probe.py
+          python3 -m unittest -q test_reasoning_profiles.py test_cloud_owner_chat.py
+      - name: Compile OpenAI-compatible public local llama.cpp engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth 1 https://github.com/ggml-org/llama.cpp.git "$RUNNER_TEMP/llama.cpp"
+          cmake -S "$RUNNER_TEMP/llama.cpp" -B "$RUNNER_TEMP/llama.cpp/build" -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DGGML_CUDA=OFF -DLLAMA_CURL=OFF
+          cmake --build "$RUNNER_TEMP/llama.cpp/build" --config Release --target llama-server -j 4
+      - name: Generate real high-effort signed 20B proposal with MAX or ULTRA compute
+        shell: bash
+        run: |
+          set -euo pipefail
+          CONFIG=$(python3 -c 'import os;from reasoning_profiles import profile;x=profile(os.environ["THINK_MODE"]);print(x["draft_rounds"],x["draft_tokens_per_round"],x["draft_effort"])')
+          read -r ROUNDS TOKENS EFFORT <<< "$CONFIG"
+          python3 cloud_owner_chat.py --execute \
+            --binary "$RUNNER_TEMP/llama.cpp/build/bin/llama-server" \
+            --weights-dir "$RUNNER_TEMP/weights" \
+            --out "$RUNNER_TEMP/20b-proposal.json" \
+            --rounds "$ROUNDS" --tokens "$TOKENS" --effort "$EFFORT" --max-seconds 1500
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mj-max-ultra-real-20b-proposal
+          path: ${{ runner.temp }}/20b-proposal.json
+          retention-days: 2
+          if-no-files-found: error
+
+  final120:
+    name: Real official OpenAI open-weight 120B high-effort final inference
+    needs: draft20
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      THINK_MODE: ${{ inputs.mode }}
+      MJ_PUBLIC_RESEARCH_QUESTION: ${{ inputs.public_question }}
+      HF_HUB_DISABLE_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/download-artifact@v4
+        with:
+          name: mj-max-ultra-real-20b-proposal
+          path: ${{ runner.temp }}/upstream
+      - name: Validate original question and signed 20B source before giant download
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 cloud_probe.py
+          python3 -c 'import os,json;from reasoning_profiles import validate_proposal; q=os.environ["MJ_PUBLIC_RESEARCH_QUESTION"].strip(); r=json.load(open(os.environ["RUNNER_TEMP"]+"/upstream/20b-proposal.json")); print("SOURCE_SHA_VERIFIED",r["sha256"],"TEXT_LENGTH",len(validate_proposal(r,q,os.environ["THINK_MODE"])))' 
+      - name: Build CPU llama.cpp for official pinned 120B model
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth 1 https://github.com/ggml-org/llama.cpp.git "$RUNNER_TEMP/llama.cpp"
+          cmake -S "$RUNNER_TEMP/llama.cpp" -B "$RUNNER_TEMP/llama.cpp/build" -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DGGML_CUDA=OFF -DLLAMA_CURL=OFF
+          cmake --build "$RUNNER_TEMP/llama.cpp/build" --config Release --target llama-server -j 4
+      - name: Authentic original published 120B SHA pinned MAX ULTRA model inference
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 official120b_chat.py --execute \
+            --binary "$RUNNER_TEMP/llama.cpp/build/bin/llama-server" \
+            --weights-dir "$RUNNER_TEMP/weights" \
+            --out "$RUNNER_TEMP/120b-final.json" \
+            --mode "$THINK_MODE" --proposal-receipt "$RUNNER_TEMP/upstream/20b-proposal.json"
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: mj-max-ultra-real-120b-final
+          path: ${{ runner.temp }}/120b-final.json
+          retention-days: 2
+          if-no-files-found: ignore
+
+  prove:
+    name: Model-by-model cryptographic evidence and final verified answer
+    needs: final120
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    env:
+      THINK_MODE: ${{ inputs.mode }}
+      MJ_PUBLIC_RESEARCH_QUESTION: ${{ inputs.public_question }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/download-artifact@v4
+        with:
+          name: mj-max-ultra-real-20b-proposal
+          path: ${{ runner.temp }}/upstream
+      - uses: actions/download-artifact@v4
+        with:
+          name: mj-max-ultra-real-120b-final
+          path: ${{ runner.temp }}/downstream
+      - name: Independently verify entire cross-model proof chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest -q test_verify_max_ultra_chain.py test_reasoning_profiles.py
+          python3 verify_max_ultra_chain.py \
+            --mode "$THINK_MODE" \
+            --proposal "$RUNNER_TEMP/upstream/20b-proposal.json" \
+            --final "$RUNNER_TEMP/downstream/120b-final.json" \
+            --out "$RUNNER_TEMP/max-ultra-evidence.json"
+          python3 render_official120b.py --receipt "$RUNNER_TEMP/downstream/120b-final.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mj-max-ultra-independent-verification
+          path: ${{ runner.temp }}/max-ultra-evidence.json
+          retention-days: 7
+          if-no-files-found: error
