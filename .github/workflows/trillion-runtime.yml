@@ -1,0 +1,48 @@
+name: Verify pinned 1.6T runtime and optimizer
+
+on:
+  push:
+    paths:
+      - 'trillion/**'
+      - '.github/workflows/trillion-runtime.yml'
+  pull_request:
+    paths:
+      - 'trillion/**'
+      - '.github/workflows/trillion-runtime.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trillion-contract-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  offline-verification:
+    name: Offline proof on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 6
+    env:
+      HF_HUB_OFFLINE: '1'
+      TRANSFORMERS_OFFLINE: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Existing repository regression suite
+        run: python -m unittest discover -p 'test_*.py' -q
+      - name: Pinned weight contract and exact-request optimization tests
+        run: python -m unittest discover -s trillion -p 'test_*.py' -v
+      - name: Validate actual immutable publisher lock without downloading weights
+        run: python trillion/trillion_runtime.py --lock trillion/model.lock.json --weights-dir unused-not-downloaded --context 32768
+      - name: Verify client is non-executing by default
+        run: python trillion/trillion_client.py
