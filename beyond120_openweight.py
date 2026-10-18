@@ -177,12 +177,23 @@ def local_http(key:str,path:str,body=None,timeout:int=15)->tuple[int,dict]:
     finally:
         conn.close()
 
-def actually_infer(profile:str,bin:Path,root:Path,out:Path,tasks:int=1)->int:
+def validate_public_question(question:str)->str:
+    if not isinstance(question,str):
+        raise ValueError("PUBLIC_QUESTION_NOT_TEXT")
+    prompt=question.strip()
+    if not 5<=len(prompt)<=1200 or "\\0" in prompt:
+        raise ValueError("PUBLIC_QUESTION_LENGTH_OR_NUL_INVALID")
+    return prompt
+
+def actually_infer(profile:str,bin:Path,root:Path,out:Path,tasks:int=1,public_question:str|None=None)->int:
     cfg=check_manifest(profile)
     if not bin.is_file() or not (root/cfg["parts"][0][0]).is_file():
         raise FileNotFoundError("LLAMA_RUNTIME_OR_VERIFIED_WEIGHTS_MISSING")
     if not 1<=tasks<=len(PROMPTS):
         raise ValueError("INVALID_TASKS")
+    selected_prompts = (validate_public_question(public_question),) if public_question is not None else PROMPTS[:tasks]
+    if public_question is not None and tasks!=1:
+        raise ValueError("PUBLIC_CHAT_REQUIRES_SINGLE_REQUEST")
     token=secrets.token_urlsafe(48)
     env=dict(os.environ)
     env["LLAMA_API_KEY"]=token
@@ -192,6 +203,9 @@ def actually_infer(profile:str,bin:Path,root:Path,out:Path,tasks:int=1)->int:
         "parameters_billions":cfg["params_b"],"active_billions":cfg["active_b"],
         "model_repo":cfg["repo"],"revision":cfg["revision"],"quantization":cfg["quant"],
         "model_shards":[{"path":p[0],"size":p[1],"sha256":p[2]} for p in cfg["parts"]],
+        "question_sha256":hashlib.sha256(selected_prompts[0].encode("utf8")).hexdigest(),
+        "question_text_in_receipt":False,
+        "public_question_override":public_question is not None,
         "model_loaded":False,"real_inference":False,"results":[],
         "model_provider_credits":0,"paid_cloud_allocations":0,
         "public_github_linux_cpu_only":True,"not_a_proprietary_model":True,
@@ -234,7 +248,7 @@ def actually_infer(profile:str,bin:Path,root:Path,out:Path,tasks:int=1)->int:
             if not evidence["model_loaded"]:
                 evidence["status"]="MODEL_ID_NOT_VERIFIED"
                 return 3
-            for i,question in enumerate(PROMPTS[:tasks]):
+            for i,question in enumerate(selected_prompts):
                 payload={
                     "model":cfg["model_alias"],
                     "messages":[{"role":"system","content":"Solve carefully and independently. Finish with only the requested answer."},
@@ -287,6 +301,8 @@ def main():
     parser.add_argument("--data",type=Path,required=True)
     parser.add_argument("--out",type=Path,required=True)
     parser.add_argument("--tasks",type=int,default=1)
+    parser.add_argument("--public-question",type=str,default=None,
+                        help="PUBLIC non-confidential prompt; this becomes the single inference question")
     parser.add_argument("--execute",action="store_true")
     args=parser.parse_args()
     cfg=check_manifest(args.profile)
@@ -304,7 +320,7 @@ def main():
         proof=download(args.profile,part,args.data)
         print(json.dumps({"phase":"PINNED_SHARD_VERIFIED","shard":part[0],
                           "bytes":proof["bytes"],"sha256":proof["sha256"]}),flush=True)
-    return actually_infer(args.profile,args.binary,args.data,args.out,args.tasks)
+    return actually_infer(args.profile,args.binary,args.data,args.out,args.tasks,args.public_question)
 
 if __name__=="__main__":
     try:sys.exit(main())
