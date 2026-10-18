@@ -1,0 +1,2 @@
+# Public check manifests bind exact bytes on Windows and Linux.
+samples/sliding-window/** text eol=lf
