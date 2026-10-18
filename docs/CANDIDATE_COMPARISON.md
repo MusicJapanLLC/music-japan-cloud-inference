@@ -94,15 +94,25 @@ The original capture predates the immutable-copy improvement. Its exact transfer
 snapshot and final manifest were matched independently; the later improvement is
 not retroactively attributed to that capture.
 
-The intentionally defective baseline fails 14 of the 21 acceptance tests when
-checked against a trusted reference during fixture construction. Actual generated
-candidate acceptance and recheck results are reported by the cloud workflow,
-not inferred from source inspection or the controller unit tests.
+The intentionally defective baseline failed 14 of the 21 acceptance tests during
+fixture construction. The actual generated candidate was then executed in
+[cloud run 39115525493](https://github.com/MusicJapanLLC/music-japan-cloud-inference/actions/runs/39115525493)
+at commit `49b4e94eea440ca076112e29315921ed5e82d9ea`. That run reproduced a failing
+21-test baseline, passed all 21 candidate acceptance tests, and passed all 21
+tests again in a fresh workspace. The selected artifact is `qwen27-1`.
+
+The exact four cloud artifact files are preserved in
+[`evidence/candidate-compare-20261018/cloud/`](../evidence/candidate-compare-20261018/cloud/).
+The downloaded ZIP matched the SHA-256 recorded by GitHub Actions. The receipt
+records `PASS_ACCEPTANCE_RECHECK`, both unsuccessful gateway captures, the test
+manifest, the selected edit hash, and the code versions used. The tiny
+`generation_seconds` values in that receipt measure capture replay; actual live
+request durations are the values in the table above and `captures.metadata.json`.
 
 Controller verification: `python -B -m unittest -q test_compare_candidates
 test_gateway_candidate_capture test_verified_dev_agent` passed 49 tests at this
-implementation snapshot. These offline tests are distinct from the 21 tests of
-the generated code.
+implementation snapshot, and the same 49 tests passed in the cloud run. These
+offline tests are distinct from the 21 tests of the generated code.
 
 ## Limits of the result
 
