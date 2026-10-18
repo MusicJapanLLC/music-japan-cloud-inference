@@ -64,8 +64,9 @@ def analyze(receipts:list[dict])->dict:
     for index,case in enumerate(CHALLENGES):
         selected=ensemble_decision(receipts,index)
         original=selected["answer"]
-        check=apply_verifier(case["prompt"],original) if original else {
-            "final_answer":"","source":"abstain","verification":{"status":"ABSTAIN"}}
+        # A tool can still prove a narrow objective result when models disagree.
+        # Uncheckable questions retain abstention rather than fabricating consensus.
+        check=apply_verifier(case["prompt"],original)
         upper=any(grade(r["results"][index]["answer"],case) for r in receipts)
         rows.append({"id":case["id"],"decision":selected["status"],
             "independent_agreement":selected.get("agreement",0),
