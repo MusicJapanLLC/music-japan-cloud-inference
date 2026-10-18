@@ -44,6 +44,29 @@ class OSS120BTests(unittest.TestCase):
     def test_exact_params_not_imitating_gpt6(self):
         self.assertEqual(m.ID,"gpt-oss-120b-MXFP4")
         self.assertNotIn("claude",m.ID.lower())
+    def test_cgroup_oom_counters_only(self):
+        with tempfile.TemporaryDirectory() as t:
+            fp=Path(t)/"events"
+            fp.write_text("low 1\\nhigh 2\\nmax 3\\noom 4\\noom_kill 5\\n",encoding="utf8")
+            self.assertEqual(m.cgroup_memory_events(fp),{"high":2,"max":3,"oom":4,"oom_kill":5})
+
+    def test_missing_cgroup_is_empty(self):
+        self.assertEqual(m.cgroup_memory_events(Path("/nonexistent/mj-cgroup-events")),{})
+
+    def test_log_diagnostic_only_categories(self):
+        with tempfile.TemporaryDirectory() as t:
+            fp=Path(t)/"log"
+            fp.write_text("failed to allocate buffer; OOM killer; mmap=true; account-key-not-for-logs",encoding="utf8")
+            result=m.diagnose_runtime(fp)
+            self.assertTrue(result["oom"])
+            self.assertTrue(result["allocation"])
+            self.assertTrue(result["mmap"])
+            self.assertNotIn("account-key-not-for-logs",str(result))
+
+    def test_limited_loading_grace(self):
+        self.assertLessEqual(m.LOAD_LIMIT_SECONDS,600)
+        self.assertGreaterEqual(m.LOAD_LIMIT_SECONDS,300)
+
     def test_compute_claim_not_baked_in(self):
         self.assertGreater(m.MIN_DISK_FREE_GIB,60)
         self.assertEqual(m.MIN_RAM_GIB,12)
