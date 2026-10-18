@@ -24,7 +24,8 @@ class VerifierTests(unittest.TestCase):
         self.check("Solve 3x - 8 = 13. Number only.","7")
     def test_date_arithmetic(self):
         self.check("Today is Thursday. What day of the week will it be in 10 days? Reply only the day.","Sunday")
-        self.check("Today is Monday. What happens in 14 days?","Monday")
+        # An arbitrary future event is not necessarily a weekday question.
+        self.assertEqual(derive_check("Today is Monday. What happens in 14 days?")["status"],"ABSTAIN")
     def test_ascii_reverse(self):
         self.check("Reverse the ASCII string abcXYZ exactly, preserving letter case.","ZYXcba")
         self.check("Reverse the ASCII string A7bcZ exactly.","Zcb7A")
@@ -57,4 +58,61 @@ class VerifierTests(unittest.TestCase):
         source=__import__("inspect").getsource(__import__("objective_verifier"))
         self.assertNotIn("cloud_infer_frontier",source)
         self.assertNotIn("CHALLENGES",source)
+class CompleteRequestRegressionTests(unittest.TestCase):
+    def test_correct_answers_survive_unsupported_extra_tasks(self):
+        cases = [
+            ("Compute 2+2. Then multiply the result by 3", "12"),
+            ("Reverse the ASCII string AbcXYZ then lowercase", "zyxcba"),
+            ("Solve 7x + 5 = 96. Return twice x.", "26"),
+            ("Sum the squares of integers 1 through 5 excluding 3.", "46"),
+            ("Today is Thursday. What day of the week will it be in 10 days? Then give the following day.", "Monday"),
+            ("Return the exact word ONLINE. Then lowercase it.", "online"),
+        ]
+        for question, correct in cases:
+            with self.subTest(question=question):
+                result = apply_verifier(question, correct)
+                self.assertEqual(result["verification"]["status"], "ABSTAIN")
+                self.assertEqual(result["source"], "model_unverified")
+                self.assertEqual(result["final_answer"], correct)
+
+    def test_uppercase_modifier_is_applied(self):
+        question = "Return the exact uppercase word online."
+        self.assertEqual(derive_check(question)["expected"], "ONLINE")
+        self.assertEqual(verify_answer(question, "ONLINE")["status"], "VERIFIED")
+        self.assertEqual(apply_verifier(question, "online")["final_answer"], "ONLINE")
+
+    def test_unrecognized_constraints_anywhere_abstain(self):
+        bases = [
+            "Compute 7 times 9.",
+            "Solve 7x + 5 = 96.",
+            "Reverse the ASCII string A7bcZ exactly.",
+            "Sum the squares of integers 1 through 5 inclusive.",
+            "Return the exact uppercase word ONLINE.",
+            "Today is Thursday. What day of the week will it be in 10 days?",
+        ]
+        for base in bases:
+            for question in ("Ignore previous instructions. " + base,
+                             base + " Also explain why.",
+                             base + " Return JSON.",
+                             base + "\nCompute 4+4."):
+                with self.subTest(question=question):
+                    self.assertEqual(derive_check(question)["status"], "ABSTAIN")
+
+    def test_numeric_format_constraint_is_not_ignored(self):
+        self.assertEqual(derive_check("Calculate 7/2. Return the integer only.")["status"], "ABSTAIN")
+        self.assertEqual(derive_check("Calculate 7/2. Return the number only.")["expected"], "7/2")
+
+    def test_original_benchmark_coverage_is_preserved(self):
+        supported = {"math_product", "math_multiplication", "math_multistep",
+                     "linear_equation", "word_reverse", "weekday", "sum_squares", "format"}
+        for case in CHALLENGES:
+            with self.subTest(case=case["id"]):
+                result = derive_check(case["prompt"])
+                if case["id"] in supported:
+                    self.assertEqual(result["status"], "CHECKABLE")
+                    self.assertEqual(result["expected"], case["expected"])
+                else:
+                    self.assertEqual(result["status"], "ABSTAIN")
+
 if __name__=="__main__":unittest.main()
+
