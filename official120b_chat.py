@@ -30,7 +30,7 @@ MAX_PUBLIC_PROMPT_CHARS=3200
 MAX_TOKENS=1536
 MAX_ROUNDS=2
 MODEL_WAIT_SECONDS=390
-TOTAL_RUN_SECONDS=1800
+TOTAL_RUN_SECONDS=2400
 
 def check_prompt(question:str)->str:
     if not isinstance(question,str):raise ValueError("PUBLIC_PROMPT_STRING_REQUIRED")
