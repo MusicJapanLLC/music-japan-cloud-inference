@@ -46,6 +46,22 @@ class Qwen122Tests(unittest.TestCase):
     def test_narrow_allowlisted_server_paths(self):
         with self.assertRaises(ValueError):
             q.http("secret","https://external-customer.example",timeout=1)
+    def test_verified_local_health_request_uses_http_module(self):
+        class FakeResponse:
+            status=200
+            def read(self,n):return b'{"status":"ok"}'
+        class FakeConnection:
+            def __init__(self,host,port,timeout):
+                self.host=host;self.port=port
+            def request(self,method,path,body=None,headers=None):
+                if method!="GET" or path!="/health":raise AssertionError("Wrong local probe")
+            def getresponse(self):return FakeResponse()
+            def close(self):pass
+        with patch.object(q.http_client,"HTTPConnection",FakeConnection):
+            status,response=q.http("test-only","/health")
+        self.assertEqual(status,200)
+        self.assertEqual(response["status"],"ok")
+
     def test_offline_default_never_downloads(self):
         with tempfile.TemporaryDirectory() as d:
             out=Path(d)/"result.json"

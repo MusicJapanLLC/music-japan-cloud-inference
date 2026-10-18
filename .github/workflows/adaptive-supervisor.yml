@@ -1,0 +1,219 @@
+name: Music Japan Adaptive Supervisor — real 20B→120B
+on:
+  push:
+    branches:
+      - feature/mj-adaptive-supervisor-20261018
+    paths:
+      - '.github/workflows/adaptive-supervisor.yml'
+      - 'adaptive_supervisor.py'
+      - 'test_adaptive_supervisor.py'
+  workflow_dispatch:
+    inputs:
+      execute:
+        type: boolean
+        required: true
+        default: false
+        description: 'Run authentic open-weight models on free GitHub Linux CPU'
+      public_question:
+        type: string
+        required: true
+        default: 'Calculate 314 times 29. Answer only the integer.'
+        description: 'PUBLIC research prompt only; not confidential company data'
+      control:
+        type: choice
+        required: true
+        options: [auto, force-ultra]
+        default: auto
+permissions:
+  contents: read
+concurrency:
+  group: mj-adaptive-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  plan:
+    name: Verify planning code and select model budgets
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      MJ_PUBLIC_RESEARCH_QUESTION: ${{ inputs.public_question || 'Calculate 314 times 29. Answer only the integer.' }}
+      CONTROL: ${{ inputs.control || 'auto' }}
+    outputs:
+      preset: ${{ steps.policy.outputs.preset }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Run 18 adversarial routing and provenance tests
+        run: |
+          set -euo pipefail
+          python3 -m unittest -q test_adaptive_supervisor.py test_verify_max_ultra_chain.py test_objective_verifier.py
+      - id: policy
+        name: Create cryptographic plan and prove it binds to public question
+        run: |
+          set -euo pipefail
+          python3 adaptive_supervisor.py plan --mode "$CONTROL" --out "$RUNNER_TEMP/plan.json"
+          python3 -c 'import os,json; x=json.load(open(os.environ["RUNNER_TEMP"]+"/plan.json")); f=open(os.environ["GITHUB_OUTPUT"],"a"); print("preset="+x["preset"],file=f)'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adaptive-plan
+          path: ${{ runner.temp }}/plan.json
+          retention-days: 1
+          if-no-files-found: error
+
+  draft20:
+    name: Generate multi-round genuine OpenAI public gpt-oss-20B output
+    needs: plan
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.execute == true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 38
+    env:
+      MJ_PUBLIC_RESEARCH_QUESTION: ${{ inputs.public_question }}
+      PRESET: ${{ needs.plan.outputs.preset }}
+      HF_HUB_DISABLE_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Prepare official open-source CPU inference runtime
+        run: |
+          set -euo pipefail
+          python3 cloud_probe.py
+          git clone --quiet --depth 1 https://github.com/ggml-org/llama.cpp.git "$RUNNER_TEMP/llama.cpp"
+          cmake -S "$RUNNER_TEMP/llama.cpp" -B "$RUNNER_TEMP/llama.cpp/build" -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DGGML_CUDA=OFF -DLLAMA_CURL=OFF
+          cmake --build "$RUNNER_TEMP/llama.cpp/build" --config Release --target llama-server -j 4
+      - name: Run actual gpt-oss-20B high-effort proposal and independent re-evaluation
+        run: |
+          set -euo pipefail
+          read -r ROUNDS TOKENS EFFORT <<< "$(python3 -c 'import os;from reasoning_profiles import profile;p=profile(os.environ["PRESET"]);print(p["draft_rounds"],p["draft_tokens_per_round"],p["draft_effort"])')"
+          python3 cloud_owner_chat.py --execute \
+            --binary "$RUNNER_TEMP/llama.cpp/build/bin/llama-server" \
+            --weights-dir "$RUNNER_TEMP/weights" \
+            --out "$RUNNER_TEMP/draft.json" \
+            --rounds "$ROUNDS" --tokens "$TOKENS" --effort "$EFFORT" --max-seconds 1500
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adaptive-real-20b
+          path: ${{ runner.temp }}/draft.json
+          retention-days: 1
+          if-no-files-found: error
+
+  decide:
+    name: Inspect actual 20B model response and choose route
+    needs: [plan,draft20]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      MJ_PUBLIC_RESEARCH_QUESTION: ${{ inputs.public_question }}
+    outputs:
+      escalate: ${{ steps.route.outputs.escalate }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/download-artifact@v4
+        with:
+          name: adaptive-plan
+          path: ${{ runner.temp }}/plan
+      - uses: actions/download-artifact@v4
+        with:
+          name: adaptive-real-20b
+          path: ${{ runner.temp }}/draft
+      - id: route
+        name: SHA-bind true model evidence and route conditional 120B inference
+        run: |
+          set -euo pipefail
+          python3 adaptive_supervisor.py decide \
+            --plan "$RUNNER_TEMP/plan/plan.json" --draft "$RUNNER_TEMP/draft/draft.json" \
+            --out "$RUNNER_TEMP/decision.json"
+          python3 -c 'import os,json; x=json.load(open(os.environ["RUNNER_TEMP"]+"/decision.json")); f=open(os.environ["GITHUB_OUTPUT"],"a"); print("escalate="+str(x["escalate_to_120b"]).lower(),file=f)'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adaptive-route
+          path: ${{ runner.temp }}/decision.json
+          retention-days: 1
+          if-no-files-found: error
+
+  final120:
+    name: Execute genuine original OpenAI open 120B only if evidence demands
+    needs: [plan,decide]
+    if: ${{ needs.decide.outputs.escalate == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    env:
+      MJ_PUBLIC_RESEARCH_QUESTION: ${{ inputs.public_question }}
+      PRESET: ${{ needs.plan.outputs.preset }}
+      HF_HUB_DISABLE_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/download-artifact@v4
+        with:
+          name: adaptive-real-20b
+          path: ${{ runner.temp }}/draft
+      - name: Verify free CPU host and build original llama.cpp
+        run: |
+          set -euo pipefail
+          python3 cloud_probe.py
+          git clone --quiet --depth 1 https://github.com/ggml-org/llama.cpp.git "$RUNNER_TEMP/llama.cpp"
+          cmake -S "$RUNNER_TEMP/llama.cpp" -B "$RUNNER_TEMP/llama.cpp/build" -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DGGML_CUDA=OFF -DLLAMA_CURL=OFF
+          cmake --build "$RUNNER_TEMP/llama.cpp/build" --config Release --target llama-server -j 4
+      - name: Run actual official SHA-pinned 120B high-effort reasoning with original 20B proposal
+        run: |
+          set -euo pipefail
+          python3 official120b_chat.py --execute \
+            --binary "$RUNNER_TEMP/llama.cpp/build/bin/llama-server" \
+            --weights-dir "$RUNNER_TEMP/weights" \
+            --out "$RUNNER_TEMP/final120.json" \
+            --mode "$PRESET" --proposal-receipt "$RUNNER_TEMP/draft/draft.json"
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: adaptive-real-120b
+          path: ${{ runner.temp }}/final120.json
+          retention-days: 1
+          if-no-files-found: ignore
+
+  finish:
+    name: Grounded final output with the exact model receipts
+    needs: [plan,draft20,decide,final120]
+    if: ${{ always() && needs.decide.result == 'success' && (needs.final120.result == 'success' || needs.final120.result == 'skipped') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    env:
+      MJ_PUBLIC_RESEARCH_QUESTION: ${{ inputs.public_question }}
+      FINAL_RESULT: ${{ needs.final120.result }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/download-artifact@v4
+        with:
+          name: adaptive-plan
+          path: ${{ runner.temp }}/plan
+      - uses: actions/download-artifact@v4
+        with:
+          name: adaptive-real-20b
+          path: ${{ runner.temp }}/draft
+      - uses: actions/download-artifact@v4
+        with:
+          name: adaptive-route
+          path: ${{ runner.temp }}/route
+      - uses: actions/download-artifact@v4
+        if: ${{ needs.final120.result == 'success' }}
+        with:
+          name: adaptive-real-120b
+          path: ${{ runner.temp }}/final
+      - name: Verify receipt chain and publish actual selected answer
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARGS=(--plan "$RUNNER_TEMP/plan/plan.json"
+                --draft "$RUNNER_TEMP/draft/draft.json"
+                --decision "$RUNNER_TEMP/route/decision.json"
+                --out "$RUNNER_TEMP/answer.json" --github-summary)
+          if [[ "$FINAL_RESULT" == success ]]; then
+            ARGS+=(--final "$RUNNER_TEMP/final/final120.json")
+          fi
+          python3 adaptive_supervisor.py finish "${ARGS[@]}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adaptive-verified-final
+          path: ${{ runner.temp }}/answer.json
+          retention-days: 7
+          if-no-files-found: error
