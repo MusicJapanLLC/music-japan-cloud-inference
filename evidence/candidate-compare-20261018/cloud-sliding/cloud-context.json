@@ -1,0 +1,25 @@
+{
+  "github_commit": "b758bf2fab923ff8a418cd7445cc557aa9ea0f57",
+  "github_run_id": "39140420341",
+  "candidate_network": "none",
+  "new_model_calls_in_ci": 0,
+  "runner_label": "ubuntu-24.04",
+  "generation_mode": "provided_response_captures_not_live_generation",
+  "comparisons": {
+    "lease-finalization": {
+      "purpose": "previous_capture_regression",
+      "task": "samples/lease-finalization/task.json",
+      "captures": "evidence/candidate-compare-20261018/captures.json",
+      "receipt": "out/comparison.json",
+      "selected_edits": "out/selected-edits.json"
+    },
+    "sliding-window": {
+      "purpose": "separate_captured_repair_validation",
+      "task": "samples/sliding-window/task.json",
+      "captures": "evidence/candidate-compare-20261018/sliding-window/captures.json",
+      "receipt": "out/sliding-window/comparison.json",
+      "selected_edits": "out/sliding-window/selected-edits.json"
+    }
+  },
+  "test_scope": "acceptance_and_independent_fresh_workspace_recheck"
+}

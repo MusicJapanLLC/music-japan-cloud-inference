@@ -1,0 +1,42 @@
+{
+  "schema": "mj.cloud-artifact-verification/1.0",
+  "observed_at_utc": "2026-10-18T15:29:52.202988+00:00",
+  "repository": "MusicJapanLLC/music-japan-cloud-inference",
+  "commit": "b758bf2fab923ff8a418cd7445cc557aa9ea0f57",
+  "run_id": 39140420341,
+  "job_id": 117713540536,
+  "run_url": "https://github.com/MusicJapanLLC/music-japan-cloud-inference/actions/runs/39140420341",
+  "artifact_id": 12141272841,
+  "artifact_zip_sha256": "5629a076eda19fd2b6105cc45da92bd088ae6d54838a1dce42c53d807aad7c1f",
+  "artifact_zip_bytes": 5869,
+  "artifact_integrity_verified": true,
+  "controller_tests_passed": 49,
+  "new_model_calls_in_ci": 0,
+  "generated_source_executed_on_controller": false,
+  "artifact_file_sha256": {
+    "cloud-context.json": "b7eb1498955770331cc30743ed21894cc9bc7e186f93c16a2bd2d2bbe64c373e",
+    "comparison.json": "c940f8244bd2fef04f15e6da0776cd45170ead318b75c9f82b16b6107d319965",
+    "docker-image-id.txt": "c2b253e09afa8c9035885548e68bb10110232755bb73f484a48f79d511e86d95",
+    "selected-edits.json": "c88bf756d6140e3bca97aeb703b894ba3b09152a76928d3c9d288f407cee4bb8",
+    "sliding-window/comparison.json": "25edd00108dacc6b9b5cc0cca94318c41b2c1fa0a5a3fd3839c346bfffdb743b",
+    "sliding-window/selected-edits.json": "7566e20eb0542962be3cfd8a8877368ca90d023242114495b56ef57ebd97e3c6"
+  },
+  "results": {
+    "lease-finalization-idempotency": {
+      "status": "PASS_ACCEPTANCE_RECHECK",
+      "candidate_id": "flashnext_direct_20261018-1",
+      "baseline_tests_run": 21,
+      "acceptance_tests_passed": 21,
+      "fresh_workspace_recheck_tests_passed": 21,
+      "comparison_receipt_sha256": "8c57a291af9023672624bd2c593b5d16f84d166fde2727543df124e33cd8fcf7"
+    },
+    "sliding-window-retry-budget": {
+      "status": "PASS_ACCEPTANCE_RECHECK",
+      "candidate_id": "flashnext_sliding_20261018-1",
+      "baseline_tests_run": 4,
+      "acceptance_tests_passed": 4,
+      "fresh_workspace_recheck_tests_passed": 4,
+      "comparison_receipt_sha256": "21139ebef9d17a52585e81a48ebb2058bbb5a673577fcd98e80ef0729419fce5"
+    }
+  }
+}
