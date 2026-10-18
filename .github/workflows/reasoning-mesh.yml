@@ -7,6 +7,8 @@ on:
       - ".github/workflows/reasoning-mesh.yml"
       - "reasoning_mesh.py"
       - "test_reasoning_mesh.py"
+      - "objective_verifier.py"
+      - "test_objective_verifier.py"
   workflow_dispatch:
     inputs:
       execute:
@@ -34,7 +36,7 @@ jobs:
       - name: Static tests and no-network dry run
         run: |
           set -euo pipefail
-          python3 -m unittest -q test_reasoning_mesh.py test_cloud_probe.py test_cloud_infer_frontier.py
+          python3 -m unittest -q test_reasoning_mesh.py test_objective_verifier.py test_cloud_probe.py test_cloud_infer_frontier.py
           for stage in propose challenge synthesize; do
             python3 reasoning_mesh.py --stage "$stage"
           done
