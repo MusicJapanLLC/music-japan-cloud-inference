@@ -1,0 +1,52 @@
+name: Music Japan Frontier Research Factory CI
+on:
+  push:
+    branches:
+      - feature/mj-frontier-research-factory-20261018
+    paths:
+      - '.github/workflows/frontier-research.yml'
+      - 'frontier_registry.py'
+      - 'test_frontier_registry.py'
+      - 'deliberation_selector.py'
+      - 'language_equivalence.py'
+      - 'test_language_equivalence.py'
+      - 'test_deliberation_selector.py'
+  workflow_dispatch:
+    inputs:
+      online_public_catalog:
+        type: boolean
+        required: true
+        default: false
+        description: 'Read 5 official public HF registries via anonymous GET; no model inference'
+permissions:
+  contents: read
+concurrency:
+  group: mj-frontier-factory-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  cloud-proofs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: All dry and adversarial zero-credit tests
+        run: |
+          set -euo pipefail
+          python3 -m unittest -q test_frontier_registry.py test_deliberation_selector.py test_language_equivalence.py test_objective_verifier.py test_reasoning_mesh.py
+          python3 deliberation_selector.py --self-check
+          python3 frontier_registry.py --out "$RUNNER_TEMP/registry-offline.json"
+          python3 frontier_registry.py --verify "$RUNNER_TEMP/registry-offline.json"
+      - name: Read-only latest frontier official model public catalog
+        run: |
+          set -euo pipefail
+          python3 frontier_registry.py --online --out "$RUNNER_TEMP/frontier-receipt.json"
+          python3 frontier_registry.py --verify "$RUNNER_TEMP/frontier-receipt.json"
+      - name: Save public model metadata (no personal information)
+        uses: actions/upload-artifact@v4
+        with:
+          name: official-frontier-catalog
+          path: ${{ runner.temp }}/frontier-receipt.json
+          retention-days: 1
+          if-no-files-found: error

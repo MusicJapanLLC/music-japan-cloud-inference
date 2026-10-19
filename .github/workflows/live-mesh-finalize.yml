@@ -1,0 +1,82 @@
+name: Music Japan Live Mesh — Independent Answer Finalization
+on:
+  push:
+    branches:
+      - feature/mj-frontier-research-factory-20261018
+    paths:
+      - '.github/workflows/live-mesh-finalize.yml'
+  workflow_dispatch:
+    inputs:
+      source_run:
+        type: string
+        description: 'Completed 3-stage public synthetic inference run ID'
+        default: '39092028874'
+        required: true
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: mj-real-mesh-finalization-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  actual-finalization:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      SOURCE_RUN: ${{ inputs.source_run || '39092028874' }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify original full inference finished, not just status text
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_RUN" =~ ^[0-9]{7,15}$ ]] || exit 2
+          for attempt in $(seq 1 24); do
+            state=$(gh api "repos/$GH_REPO/actions/runs/$SOURCE_RUN" --jq .status)
+            if [[ "$state" == completed ]]; then
+              conclusion=$(gh api "repos/$GH_REPO/actions/runs/$SOURCE_RUN" --jq .conclusion)
+              echo "original_run=$SOURCE_RUN status=$state conclusion=$conclusion"
+              [[ "$conclusion" == success ]] || exit 2
+              break
+            fi
+            if [[ "$attempt" -eq 24 ]]; then echo 'INFERENCE_RUN_NOT_COMPLETED' >&2; exit 2; fi
+            sleep 30
+          done
+      - uses: actions/download-artifact@v4
+        with:
+          name: mesh-propose
+          path: ${{ runner.temp }}/proposer
+          run-id: ${{ env.SOURCE_RUN }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: mesh-challenge
+          path: ${{ runner.temp }}/challenger
+          run-id: ${{ env.SOURCE_RUN }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: mesh-synthesis
+          path: ${{ runner.temp }}/synthesizer
+          run-id: ${{ env.SOURCE_RUN }}
+          github-token: ${{ github.token }}
+      - name: Independent code and tests, then real artifact adjudication
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest -q test_deliberation_selector.py test_language_equivalence.py test_objective_verifier.py
+          python3 deliberation_selector.py \
+            --proposal "$RUNNER_TEMP/proposer/propose.json" \
+            --critique "$RUNNER_TEMP/challenger/challenge.json" \
+            --synthesis "$RUNNER_TEMP/synthesizer/synthesis.json" \
+            --out "$RUNNER_TEMP/decision.json" --audit
+      - uses: actions/upload-artifact@v4
+        with:
+          name: independently-grounded-final-answers
+          path: ${{ runner.temp }}/decision.json
+          retention-days: 7
+          if-no-files-found: error
