@@ -1,0 +1,60 @@
+{
+  "schema": "mj.candidate-captures/1.0",
+  "prompt_sha256": "38714934b10ae14a78da8154988b454c0450542e1f86eab58f736c47dfb2e505",
+  "task_manifest_sha256": "d3441d5cfe8c5ea882020c7eb788274e59e63a64ac67f64b2e9b3de60d93cd30",
+  "candidates": [
+    {
+      "profile": "flashnext_direct_20261018",
+      "expected_model": "mj-flash-next",
+      "expected_upstream_model": "/root/.cache/huggingface/hub/models--AtomicChat--Qwen3.8-Flash-Next-GGUF/snapshots/1c1f33abc8e835db3215390e8e14c6cc726f5843/Qwen3.8-Flash-Next-AD-4.27bpw-Q4_K_M-M64/Qwen3.8-Flash-Next-AD-4.27bpw-Q4_K_M-M64-00001-of-00033.gguf",
+      "family": "flashnext",
+      "responses": [
+        {
+          "model": "mj-flash-next",
+          "choices": [
+            {
+              "index": 0,
+              "finish_reason": "stop",
+              "message": {
+                "role": "assistant",
+                "content": "{\"edits\":[{\"path\":\"job_receipt.py\",\"content\":\"\\\"\\\"\\\"Synthetic lease completion fixture with deliberately incomplete validation.\\\"\\\"\\\"\\nfrom copy import deepcopy\\n\\n\\ndef finish(job: dict, worker_id: str, lease_epoch: int,\\n           result_digest: str, now: int) -> dict:\\n    updated = deepcopy(job)\\n\\n    # (1) If status is done, the immutable stored tuple is authoritative.\\n    if updated[\\\"status\\\"] == \\\"done\\\":\\n        if (updated[\\\"committed_worker_id\\\"] != worker_id\\n                or updated[\\\"committed_lease_epoch\\\"] != lease_epoch):\\n            raise ValueError(\\\"STALE_LEASE\\\")\\n        if updated[\\\"result_digest\\\"] != result_digest:\\n            raise ValueError(\\\"RESULT_CONFLICT\\\")\\n        return updated\\n\\n    # (2) Terminal states take precedence over caller identity and deadlines.\\n    if updated[\\\"status\\\"] == \\\"cancelled\\\":\\n        raise ValueError(\\\"CANCELLED\\\")\\n    if updated[\\\"status\\\"] == \\\"expired\\\":\\n        raise ValueError(\\\"EXPIRED\\\")\\n\\n    # (3) Any other status except running raises INVALID_STATUS.\\n    if updated[\\\"status\\\"] != \\\"running\\\":\\n        raise ValueError(\\\"INVALID_STATUS\\\")\\n\\n    # (4) For running, mismatch with current worker_id or lease_epoch\\n    #     raises STALE_LEASE before deadlines.\\n    if updated[\\\"worker_id\\\"] != worker_id or updated[\\\"lease_epoch\\\"] != lease_epoch:\\n        raise ValueError(\\\"STALE_LEASE\\\")\\n\\n    # (5) now >= expires_at raises EXPIRED.\\n    if now >= updated[\\\"expires_at\\\"]:\\n        raise ValueError(\\\"EXPIRED\\\")\\n\\n    # (6) now >= lease_until raises LEASE_EXPIRED.\\n    if now >= updated[\\\"lease_until\\\"]:\\n        raise ValueError(\\\"LEASE_EXPIRED\\\")\\n\\n    # (7) Complete successfully.\\n    updated.update(\\n        status=\\\"done\\\", result_digest=result_digest,\\n        committed_worker_id=worker_id, committed_lease_epoch=lease_epoch,\\n        finished_at=now,\\n    )\\n    return updated\\n\"}]}"
+              }
+            }
+          ],
+          "mj": {
+            "weight_bytes_verified": false,
+            "identity_basis": "upstream_reported",
+            "complete_final_answer": true,
+            "source_model": "Qwen/Qwen3.8-Flash-Next",
+            "upstream_model": "/root/.cache/huggingface/hub/models--AtomicChat--Qwen3.8-Flash-Next-GGUF/snapshots/1c1f33abc8e835db3215390e8e14c6cc726f5843/Qwen3.8-Flash-Next-AD-4.27bpw-Q4_K_M-M64/Qwen3.8-Flash-Next-AD-4.27bpw-Q4_K_M-M64-00001-of-00033.gguf",
+            "backend": "mj-flash-next",
+            "cost_mode": "public_demo",
+            "requested_model": "mj-flash-next",
+            "finish_reason_verified": true,
+            "finish_reason_basis": "upstream_finish_reason_and_done",
+            "transport": "public_https_direct",
+            "server_cancellation_supported": false,
+            "use_environment_proxy": true,
+            "proxy_credentials_sent": false,
+            "company_credentials_sent": false,
+            "paid_fallback": false,
+            "upstream_streaming": true,
+            "requested_reasoning_effort": "low",
+            "reasoning_effort_attested": false,
+            "requested_thinking_budget_tokens": 512,
+            "thinking_budget_attested": false,
+            "response_format_requested": "json_object"
+          },
+          "usage": {
+            "completion_tokens": 987,
+            "prompt_tokens": 796,
+            "total_tokens": 1783,
+            "prompt_tokens_details": {
+              "cached_tokens": 792
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "schema": "mj.candidate-captures/1.0",
+  "prompt_sha256": "db10f7fd6cea37828cdf739489ed13a96233530af907e76cba7fd3116b3f5570",
+  "task_manifest_sha256": "16762131ba90462011738b22f6787dc4bd20710a7badcff63bff28f883ad1d23",
+  "candidates": [
+    {
+      "profile": "flashnext_sliding_20261018",
+      "expected_model": "mj-flash-next",
+      "expected_upstream_model": "/root/.cache/huggingface/hub/models--AtomicChat--Qwen3.8-Flash-Next-GGUF/snapshots/1c1f33abc8e835db3215390e8e14c6cc726f5843/Qwen3.8-Flash-Next-AD-4.27bpw-Q4_K_M-M64/Qwen3.8-Flash-Next-AD-4.27bpw-Q4_K_M-M64-00001-of-00033.gguf",
+      "family": "qwen",
+      "responses": [
+        {
+          "model": "mj-flash-next",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"edits\":[{\"path\":\"retry_budget.py\",\"content\":\"\\\"\\\"\\\"An intentionally defective rolling-window limiter for agent evaluation.\\\"\\\"\\\"\\n\\nimport threading\\n\\n\\nclass Budget:\\n    def __init__(self, limit, window):\\n        if limit <= 0:\\n            raise ValueError(\\\"limit must be strictly positive\\\")\\n        if window <= 0:\\n            raise ValueError(\\\"window must be strictly positive\\\")\\n        self.limit = limit\\n        self.window = window\\n        self._timestamps = []\\n        self._last_now = None\\n        self._lock = threading.Lock()\\n\\n    def try_acquire(self, now):\\n        with self._lock:\\n            if self._last_now is not None and now < self._last_now:\\n                raise ValueError(\\\"timestamp must be monotonically non-decreasing\\\")\\n            self._last_now = now\\n            self._timestamps = [\\n                stamp for stamp in self._timestamps if now - stamp < self.window\\n            ]\\n            if len(self._timestamps) < self.limit:\\n                self._timestamps.append(now)\\n                return True\\n            return False\\n\\n    def reset(self):\\n        with self._lock:\\n            self._timestamps.clear()\\n            self._last_now = None\\n\"}]}"
+              },
+              "finish_reason": "stop"
+            }
+          ],
+          "mj": {
+            "weight_bytes_verified": false,
+            "identity_basis": "upstream_reported",
+            "complete_final_answer": true,
+            "first_answer_content_seconds": 49.452,
+            "first_answer_content_timing_basis": "client_monotonic_from_generation_request",
+            "source_model": "Qwen/Qwen3.8-Flash-Next",
+            "upstream_model": "/root/.cache/huggingface/hub/models--AtomicChat--Qwen3.8-Flash-Next-GGUF/snapshots/1c1f33abc8e835db3215390e8e14c6cc726f5843/Qwen3.8-Flash-Next-AD-4.27bpw-Q4_K_M-M64/Qwen3.8-Flash-Next-AD-4.27bpw-Q4_K_M-M64-00001-of-00033.gguf",
+            "backend": "mj-flash-next",
+            "cost_mode": "public_demo",
+            "requested_model": "mj-flash-next",
+            "finish_reason_verified": true,
+            "finish_reason_basis": "upstream_finish_reason_and_done",
+            "transport": "public_https_direct",
+            "server_cancellation_supported": false,
+            "use_environment_proxy": true,
+            "proxy_credentials_sent": false,
+            "company_credentials_sent": false,
+            "paid_fallback": false,
+            "upstream_streaming": true,
+            "requested_reasoning_effort": "low",
+            "reasoning_effort_attested": false,
+            "requested_thinking_budget_tokens": 512,
+            "thinking_budget_attested": false,
+            "response_format_requested": "json_object"
+          },
+          "usage": {
+            "completion_tokens": 787,
+            "prompt_tokens": 349,
+            "total_tokens": 1136,
+            "prompt_tokens_details": {
+              "cached_tokens": 30
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
