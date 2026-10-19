@@ -1,0 +1,35 @@
+{
+  "answer_sha256": "f5dc0c0513f1fcd68f522d64cdc9a0a63029c99f51b600fc69f537b3cec3acb4",
+  "automatic_retry": false,
+  "company_model_api_credits_used": 0,
+  "created_at_utc": "2026-10-18T15:00:05+00:00",
+  "elapsed_seconds": 9.775,
+  "execution_surface": "github_public_standard_runner",
+  "git_sha": "d78d27d39dfe580500cf10ebea64f4c101968ae5",
+  "graded_correct": true,
+  "model": "/root/.cache/huggingface/hub/models--AtomicChat--Qwen3.8-Flash-Next-GGUF/snapshots/1c1f33abc8e835db3215390e8e14c6cc726f5843/Qwen3.8-Flash-Next-AD-4.27bpw-Q4_K_M-M64/Qwen3.8-Flash-Next-AD-4.27bpw-Q4_K_M-M64-00001-of-00033.gguf",
+  "model_catalog_verified": true,
+  "paid_fallback": false,
+  "prompt_sha256": "3f2c77a6b617caea041d9d7fb0037a0b997bb77a10141f2567f453971e404594",
+  "provider_price_usd_verified": false,
+  "schema": "mj.public-cloud-canary/1",
+  "source": "verbatim_verified_actions_job_log",
+  "status": "GENERATED_AND_GRADED",
+  "usage": {
+    "completion_tokens": 81,
+    "prompt_tokens": 83,
+    "total_tokens": 164
+  },
+  "weights_verified": false,
+  "github_run_url": "https://github.com/MusicJapanLLC/music-japan-cloud-inference/actions/runs/39138454573",
+  "github_job_id": 117707756011,
+  "offline_tests_passed": 15,
+  "claims_limitations": [
+    "not_owner_hosted_weights",
+    "not_975B_or_1650B_model",
+    "single_public_synthetic_request",
+    "upstream_reported_model_only",
+    "provider_billing_not_independently_verified",
+    "github_public_runner_does_not_make_always_on_service"
+  ]
+}

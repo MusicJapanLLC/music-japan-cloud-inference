@@ -1,0 +1,46 @@
+name: Public cloud live inference single canary
+on:
+  push:
+    branches: [feature/public-cloud-uptime-canary-20261018]
+    paths:
+      - cloud_public_canary.py
+      - test_cloud_public_canary.py
+      - .github/workflows/public-cloud-canary.yml
+  pull_request:
+    paths:
+      - cloud_public_canary.py
+      - test_cloud_public_canary.py
+      - .github/workflows/public-cloud-canary.yml
+permissions:
+  contents: read
+concurrency:
+  group: public-cloud-canary-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  offline-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Verify safety and model attribution locally
+        run: |
+          python3 -m py_compile cloud_public_canary.py
+          python3 -m unittest -v test_cloud_public_canary.py
+          python3 cloud_public_canary.py
+  live-single-shot:
+    needs: offline-contract
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: One permitted public synthetic prompt, no auto retry or key
+        run: python3 cloud_public_canary.py --live --timeout 150 --receipt cloud-public-canary-receipt.json
+      - name: Preserve exact terminal result, including upstream failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-cloud-canary-${{ github.sha }}
+          path: cloud-public-canary-receipt.json
+          if-no-files-found: warn
+          retention-days: 14
